@@ -4,6 +4,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Microsoft.AspNetCore.Razor.Language;
 using Microsoft.CodeAnalysis;
 
 namespace Microsoft.NET.Sdk.Razor.SourceGenerators
@@ -49,7 +51,33 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
 
             return source.Select((pair, ct) => pair.Item1!);
         }
+
+
+
+        internal static IncrementalValuesProvider<RazorProjectItemEx> AsProjectItemEx(this IncrementalValuesProvider<SourceGeneratorProjectItem> projectItems, IncrementalValuesProvider<SourceGeneratorProjectItem> imports, IncrementalValueProvider<RazorSourceGenerationOptions> options)
+        {
+            return projectItems
+                .Combine(imports.Collect())
+                .WithLambdaComparer((old, @new) => old.Left.Equals(@new.Left) && Enumerable.SequenceEqual(old.Right, @new.Right), (item) => item.GetHashCode())
+                .Combine(options)
+                .Select((combined, _) =>
+                {
+                    var ((item, imports), options) = combined;
+
+                    var fileSystem = new VirtualRazorProjectFileSystem();
+                    fileSystem.Add(item);
+                    foreach (var import in imports)
+                    {
+                        fileSystem.Add(import);
+                    }
+
+                    return new RazorProjectItemEx(item, imports, fileSystem, options);
+                });
+        }
+
     }
+    internal record RazorProjectItemEx(SourceGeneratorProjectItem Item, IEnumerable<SourceGeneratorProjectItem> Imports, VirtualRazorProjectFileSystem FileSystem, RazorSourceGenerationOptions Options, RazorCodeDocument? CodeDocument = null);
+
 
     internal sealed class LambdaComparer<T> : IEqualityComparer<T>
     {

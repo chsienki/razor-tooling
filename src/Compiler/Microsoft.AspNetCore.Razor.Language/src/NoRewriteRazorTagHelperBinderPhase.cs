@@ -13,11 +13,33 @@ using Microsoft.AspNetCore.Razor.Language.Syntax;
 
 namespace Microsoft.AspNetCore.Razor.Language;
 
-internal class DefaultRazorTagHelperBinderPhase : RazorEnginePhaseBase, IRazorTagHelperBinderPhase
+internal class RewriteRazorTagHelperBinderPhase : RazorEnginePhaseBase, IRazorTagHelperBinderPhase
 {
     protected override void ExecuteCore(RazorCodeDocument codeDocument)
     {
-        var syntaxTree = codeDocument.GetSyntaxTree();
+        var syntaxTree = codeDocument.GetInitialSyntaxTree();
+        ThrowForMissingDocumentDependency(syntaxTree);
+
+        var context = codeDocument.GetTagHelperContext();
+
+        //// ensure we have a copy of the syntax tree before we rewrite it
+        //codeDocument.SetInitialSyntaxTree(syntaxTree);
+
+        var rewrittenSyntaxTree = TagHelperParseTreeRewriter.Rewrite(syntaxTree, context.Prefix, context.TagHelpers, out var usedHelpers);
+
+        codeDocument.SetReferencedTagHelpers(usedHelpers.ToArray());
+        codeDocument.SetSyntaxTree(rewrittenSyntaxTree);
+    }
+}
+
+/// <summary>
+/// Figures out which tag helpers are in scope for a given syntax tree
+/// </summary>
+internal class RazorTagHelperInScopeDiscoveryPhase : RazorEnginePhaseBase, IRazorTagHelperBinderPhase
+{
+    protected override void ExecuteCore(RazorCodeDocument codeDocument)
+    {
+        var syntaxTree = codeDocument.GetInitialSyntaxTree();
         ThrowForMissingDocumentDependency(syntaxTree);
 
         var descriptors = codeDocument.GetTagHelpers();
@@ -70,15 +92,15 @@ internal class DefaultRazorTagHelperBinderPhase : RazorEnginePhaseBase, IRazorTa
         var context = TagHelperDocumentContext.Create(tagHelperPrefix, descriptors);
         codeDocument.SetTagHelperContext(context);
 
-        if (descriptors.Count == 0)
-        {
-            // No descriptors, no-op.
-            return;
-        }
+        //if (descriptors.Count == 0)
+        //{
+        //    // No descriptors, no-op.
+        //    return;
+        //}
 
-        var rewrittenSyntaxTree = TagHelperParseTreeRewriter.Rewrite(syntaxTree, tagHelperPrefix, descriptors, out _);
+        //var rewrittenSyntaxTree = TagHelperParseTreeRewriter.Rewrite(syntaxTree, tagHelperPrefix, descriptors);
 
-        codeDocument.SetSyntaxTree(rewrittenSyntaxTree);
+        //codeDocument.SetSyntaxTree(rewrittenSyntaxTree);
     }
 
     private static bool MatchesDirective(TagHelperDescriptor descriptor, string typePattern, string assemblyName)

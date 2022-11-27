@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 #nullable disable
@@ -13,7 +13,8 @@ internal class DefaultRazorCodeDocument : RazorCodeDocument
 {
     public DefaultRazorCodeDocument(
         RazorSourceDocument source,
-        IEnumerable<RazorSourceDocument> imports)
+        IEnumerable<RazorSourceDocument> imports,
+        ItemCollection items = null)
     {
         if (source == null)
         {
@@ -23,7 +24,7 @@ internal class DefaultRazorCodeDocument : RazorCodeDocument
         Source = source;
         Imports = imports?.ToArray() ?? RazorSourceDocument.EmptyArray;
 
-        Items = new ItemCollection();
+        Items = items ?? new ItemCollection();
     }
 
     public override IReadOnlyList<RazorSourceDocument> Imports { get; }

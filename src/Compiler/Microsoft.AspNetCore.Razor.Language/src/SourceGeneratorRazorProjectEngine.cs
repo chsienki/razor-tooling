@@ -1,31 +1,23 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-#nullable disable
-
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Razor.Language.Components;
 using Microsoft.AspNetCore.Razor.Language.Extensions;
+using System.Threading.Tasks;
+using System.Linq;
 
 namespace Microsoft.AspNetCore.Razor.Language;
 
-public abstract class RazorProjectEngine
+internal class SourceGeneratorRazorProjectEngine : DefaultRazorProjectEngine
 {
-    public abstract RazorConfiguration Configuration { get; }
+    public SourceGeneratorRazorProjectEngine(RazorConfiguration configuration, RazorEngine engine, RazorProjectFileSystem fileSystem, IReadOnlyList<IRazorProjectEngineFeature> projectFeatures)
+        : base(configuration, engine, fileSystem, projectFeatures)
+    {
+    }
 
-    public abstract RazorProjectFileSystem FileSystem { get; }
-
-    public abstract RazorEngine Engine { get; }
-
-    public IReadOnlyList<IRazorEngineFeature> EngineFeatures => Engine.Features;
-
-    public IReadOnlyList<IRazorEnginePhase> Phases => Engine.Phases;
-
-    public abstract IReadOnlyList<IRazorProjectEngineFeature> ProjectFeatures { get; }
-
-    public virtual RazorCodeDocument Process(RazorProjectItem projectItem)
+    public RazorCodeDocument ProcessInitialParse(RazorProjectItem projectItem)
     {
         if (projectItem == null)
         {
@@ -33,122 +25,101 @@ public abstract class RazorProjectEngine
         }
 
         var codeDocument = CreateCodeDocumentCore(projectItem);
-        ProcessCore(codeDocument);
+        ProcessPartial(codeDocument, 0, 2);
         return codeDocument;
+
     }
 
-    public virtual RazorCodeDocument Process(RazorCodeDocument codeDocument)
-    {
-        ProcessCore(codeDocument);
-        return codeDocument;
-    }
+    //PROTOTYPE: it's weird that we mutate the code document in place, but still return it? Yep that break some stuff. Of course it does, *sigh*. Even after changing them they still compare equal. Gosh darn.
+    //Ok, we'll clone it for now, should fix the object equality. we should probably make these things immutable with proper comparisons.
 
-    public virtual RazorCodeDocument Process(RazorSourceDocument source, string fileKind, IReadOnlyList<RazorSourceDocument> importSources, IReadOnlyList<TagHelperDescriptor> tagHelpers)
+    public RazorCodeDocument ProcessTagHelpers(RazorCodeDocument codeDocument, /*string fileKind, IReadOnlyList<RazorSourceDocument> importSources,*/ IReadOnlyList<TagHelperDescriptor> tagHelpers, bool checkForIdempotency)
     {
-        throw new NotImplementedException();
-    }
+        //PROTOTYPE: do we need the import sources, don't we already have those from the projectItem?
 
-    public virtual RazorCodeDocument ProcessDeclarationOnly(RazorProjectItem projectItem)
-    {
-        throw new NotImplementedException();
-    }
+        // PROTOYPE: clean up the logic flow here
 
-    public virtual RazorCodeDocument ProcessDeclarationOnly(RazorSourceDocument source, string fileKind, IReadOnlyList<RazorSourceDocument> importSources, IReadOnlyList<TagHelperDescriptor> tagHelpers)
-    {
-        throw new NotImplementedException();
-    }
-
-    public virtual RazorCodeDocument ProcessDesignTime(RazorSourceDocument source, string fileKind, IReadOnlyList<RazorSourceDocument> importSources, IReadOnlyList<TagHelperDescriptor> tagHelpers)
-    {
-        throw new NotImplementedException();
-    }
-
-    public virtual RazorCodeDocument ProcessDesignTime(RazorProjectItem projectItem)
-    {
-        if (projectItem == null)
+        int startIndex = 2;
+        var inputTagHelpers = codeDocument.GetTagHelpers();
+        if (checkForIdempotency && inputTagHelpers is not null)
         {
-            throw new ArgumentNullException(nameof(projectItem));
+            // compare the input tag helpers with the ones the document last used
+            if (Enumerable.SequenceEqual(inputTagHelpers, tagHelpers))
+            {
+                // tag helpers are the same, nothing to do!
+                return codeDocument;
+            }
+            else
+            {
+                // re-run the scope check, and see if the ones in scope are the same as last time
+                var oldContextHelpers = codeDocument.GetTagHelperContext().TagHelpers;
+                codeDocument.SetTagHelpers(tagHelpers);
+                ProcessPartial(codeDocument, 2, 3);
+                var newContextHelpers = codeDocument.GetTagHelperContext().TagHelpers;
+
+                if (Enumerable.SequenceEqual(oldContextHelpers, newContextHelpers))
+                {
+                    // the overall set of tag helpers changed, but the ones this document can see in scope did not, we can re-use
+                    return codeDocument;
+                }
+
+                //TODO: can we run this check first? I.e. if the length of the input helpers is the same, we don't need to re-calc the context. Maybe?
+                //      consider: I remove a tag helper that wasn't in context, and add one that now is. If we look at all the used tag helpers, then we'd incorrectly say we can short circuit,
+                //      even though the added one might actually be in the document. So we have to check the scopes first, annoyingly. (I think? write a test to prove this).
+
+                // as long as no tag helpers were removed or added, we can check the tagHelpers we used last time, to see if the one that was modified was actually used
+                if (oldContextHelpers.Count == newContextHelpers.Count)
+                {
+                    bool foundDiff = false;
+                    var newContextSet = new HashSet<TagHelperDescriptor>(newContextHelpers);
+                    foreach (var usedHelper in codeDocument.GetReferencedTagHelpers())
+                    {
+                        if (newContextSet.Add(usedHelper))
+                        {
+                            // the new set doesn't contain a helper we used last time, we need to re-parse
+                            foundDiff = true;
+                            break;
+                        }
+                    }
+
+                    if (!foundDiff)
+                    {
+                        return codeDocument;
+                    }
+
+                }
+
+                // Need to do a full re-write, but can skip the scoping check as we just did it
+                startIndex = 3;
+            }
         }
 
-        var codeDocument = CreateCodeDocumentDesignTimeCore(projectItem);
-        ProcessCore(codeDocument);
-        return codeDocument;
+        codeDocument.SetTagHelpers(tagHelpers);
+        ProcessPartial(codeDocument, startIndex, 4);
+        return codeDocument.Clone();
     }
 
-    protected abstract RazorCodeDocument CreateCodeDocumentCore(RazorProjectItem projectItem);
-
-    protected abstract RazorCodeDocument CreateCodeDocumentDesignTimeCore(RazorProjectItem projectItem);
-
-    protected abstract void ProcessCore(RazorCodeDocument codeDocument);
-
-    internal static RazorProjectEngine CreateEmpty(Action<RazorProjectEngineBuilder> configure = null)
+    public RazorCodeDocument ProcessRemaining(RazorCodeDocument codeDocument)
     {
-        var builder = new DefaultRazorProjectEngineBuilder(RazorConfiguration.Default, RazorProjectFileSystem.Empty);
+        // PROTOTYPE: assert we're at a point that this can process.
 
-        configure?.Invoke(builder);
-
-        return builder.Build();
+        ProcessPartial(codeDocument, 4, Engine.Phases.Count);
+        return codeDocument.Clone();
     }
 
-    internal static RazorProjectEngine Create(Action<RazorProjectEngineBuilder> configure) => Create(RazorConfiguration.Default, RazorProjectFileSystem.Empty, configure);
-
-    public static RazorProjectEngine Create(RazorConfiguration configuration, RazorProjectFileSystem fileSystem) => Create(configuration, fileSystem, configure: null);
-
-
-    public static RazorProjectEngine CreateParseEngine(
-        RazorConfiguration configuration,
-        RazorProjectFileSystem fileSystem,
-        Action<RazorProjectEngineBuilder> configure,
-        bool preParse
-        )
+    private void ProcessPartial(RazorCodeDocument codeDocument, int startIndex, int endIndex)
     {
-        var builder = new DefaultRazorProjectEngineBuilder(configuration, fileSystem);
-
-        // The initialization order is somewhat important.
-        //
-        // Defaults -> Extensions -> Additional customization
-        //
-        // This allows extensions to rely on default features, and customizations to override choices made by
-        // extensions.
-        if (preParse)
+        for (var i = startIndex; i < endIndex; i++)
         {
-            AddParsePhases(builder.Phases);
+            Engine.Phases[i].Execute(codeDocument);
         }
-        else
-        {
-            AddPostParsePhases(builder.Phases);
-        }
-
-        AddDefaultFeatures(builder.Features);
-
-        if (configuration.LanguageVersion.CompareTo(RazorLanguageVersion.Version_5_0) >= 0)
-        {
-            builder.Features.Add(new ViewCssScopePass());
-        }
-
-        if (configuration.LanguageVersion.CompareTo(RazorLanguageVersion.Version_3_0) >= 0)
-        {
-            FunctionsDirective.Register(builder);
-            ImplementsDirective.Register(builder);
-            InheritsDirective.Register(builder);
-            NamespaceDirective.Register(builder);
-            AttributeDirective.Register(builder);
-
-            AddComponentFeatures(builder, configuration.LanguageVersion);
-        }
-
-        LoadExtensions(builder, configuration.Extensions);
-
-        configure?.Invoke(builder);
-
-        return builder.Build();
     }
 
-
-    public static RazorProjectEngine Create(
-        RazorConfiguration configuration,
-        RazorProjectFileSystem fileSystem,
-        Action<RazorProjectEngineBuilder> configure)
+    //TODO: factor this out somehow
+    public static SourceGeneratorRazorProjectEngine CreateSourceGeneratorEngine(
+      RazorConfiguration configuration,
+      RazorProjectFileSystem fileSystem,
+      Action<RazorProjectEngineBuilder> configure)
     {
         if (fileSystem == null)
         {
@@ -191,37 +162,25 @@ public abstract class RazorProjectEngine
 
         configure?.Invoke(builder);
 
-        return builder.Build();
+        var superType = builder.Build();
+        return new SourceGeneratorRazorProjectEngine(superType.Configuration, superType.Engine, superType.FileSystem, superType.ProjectFeatures);
     }
 
     private static void AddDefaultPhases(IList<IRazorEnginePhase> phases)
     {
         phases.Add(new DefaultRazorParsingPhase());
         phases.Add(new DefaultRazorSyntaxTreePhase());
-        phases.Add(new DefaultRazorTagHelperBinderPhase());
-        phases.Add(new DefaultRazorIntermediateNodeLoweringPhase());
-        phases.Add(new DefaultRazorDocumentClassifierPhase());
-        phases.Add(new DefaultRazorDirectiveClassifierPhase());
-        phases.Add(new DefaultRazorOptimizationPhase());
-        phases.Add(new DefaultRazorCSharpLoweringPhase());
-    }
 
-    private static void AddParsePhases(IList<IRazorEnginePhase> phases)
-    {
-        phases.Add(new DefaultRazorParsingPhase());
-        phases.Add(new DefaultRazorSyntaxTreePhase());
-    }
-
-    private static void AddPostParsePhases(IList<IRazorEnginePhase> phases)
-    {
         phases.Add(new RazorTagHelperInScopeDiscoveryPhase());
         phases.Add(new RewriteRazorTagHelperBinderPhase());
+
         phases.Add(new DefaultRazorIntermediateNodeLoweringPhase());
         phases.Add(new DefaultRazorDocumentClassifierPhase());
         phases.Add(new DefaultRazorDirectiveClassifierPhase());
         phases.Add(new DefaultRazorOptimizationPhase());
         phases.Add(new DefaultRazorCSharpLoweringPhase());
     }
+
 
 
     private static void AddDefaultFeatures(ICollection<IRazorFeature> features)
@@ -353,4 +312,5 @@ public abstract class RazorProjectEngine
             }
         }
     }
+
 }

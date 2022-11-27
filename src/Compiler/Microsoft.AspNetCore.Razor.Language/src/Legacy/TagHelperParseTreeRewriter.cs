@@ -14,7 +14,7 @@ namespace Microsoft.AspNetCore.Razor.Language.Legacy;
 
 internal static class TagHelperParseTreeRewriter
 {
-    public static RazorSyntaxTree Rewrite(RazorSyntaxTree syntaxTree, string tagHelperPrefix, IEnumerable<TagHelperDescriptor> descriptors)
+    public static RazorSyntaxTree Rewrite(RazorSyntaxTree syntaxTree, string tagHelperPrefix, IEnumerable<TagHelperDescriptor> descriptors, out IEnumerable<TagHelperDescriptor> usedDescriptors)
     {
         var errorSink = new ErrorSink();
 
@@ -32,6 +32,8 @@ internal static class TagHelperParseTreeRewriter
         errorList.AddRange(descriptors.SelectMany(d => d.GetAllDiagnostics()));
 
         var diagnostics = CombineErrors(syntaxTree.Diagnostics, errorList).OrderBy(error => error.Span.AbsoluteIndex);
+
+        usedDescriptors = rewriter.UsedTagHelpers;
 
         var newSyntaxTree = RazorSyntaxTree.Create(rewritten, syntaxTree.Source, diagnostics, syntaxTree.Options);
         return newSyntaxTree;
@@ -61,6 +63,7 @@ internal static class TagHelperParseTreeRewriter
         private readonly Stack<TagTracker> _trackerStack;
         private readonly ErrorSink _errorSink;
         private readonly RazorParserFeatureFlags _featureFlags;
+        private readonly HashSet<TagHelperDescriptor> _usedTagHelpers;
 
         public Rewriter(
             RazorSourceDocument source,
@@ -76,8 +79,11 @@ internal static class TagHelperParseTreeRewriter
             _attributeValueBuilder = new StringBuilder();
             _htmlAttributeTracker = new List<KeyValuePair<string, string>>();
             _featureFlags = featureFlags;
+            _usedTagHelpers = new HashSet<TagHelperDescriptor>();
             _errorSink = errorSink;
         }
+
+        public HashSet<TagHelperDescriptor> UsedTagHelpers => _usedTagHelpers;
 
         private TagTracker CurrentTracker => _trackerStack.Count > 0 ? _trackerStack.Peek() : null;
 
@@ -275,6 +281,11 @@ internal static class TagHelperParseTreeRewriter
 
             // We're in a start TagHelper block.
             ValidateStartTagSyntax(tagName, startTag);
+
+            foreach (var descriptor in tagHelperBinding.Descriptors)
+            {
+                _usedTagHelpers.Add(descriptor);
+            }
 
             var rewrittenStartTag = TagHelperBlockRewriter.Rewrite(
                 tagName,

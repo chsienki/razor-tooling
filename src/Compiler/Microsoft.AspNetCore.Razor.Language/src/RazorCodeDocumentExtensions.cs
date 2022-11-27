@@ -58,6 +58,26 @@ public static class RazorCodeDocumentExtensions
         document.Items[typeof(TagHelpersHolder)] = new TagHelpersHolder(tagHelpers);
     }
 
+    internal static IReadOnlyList<TagHelperDescriptor> GetReferencedTagHelpers(this RazorCodeDocument document)
+    {
+        if (document == null)
+        {
+            throw new ArgumentNullException(nameof(document));
+        }
+
+        return (document.Items[nameof(GetReferencedTagHelpers)] as TagHelpersHolder)?.TagHelpers;
+    }
+
+    internal static void SetReferencedTagHelpers(this RazorCodeDocument document, IReadOnlyList<TagHelperDescriptor> tagHelpers)
+    {
+        if (document == null)
+        {
+            throw new ArgumentNullException(nameof(document));
+        }
+
+        document.Items[nameof(GetReferencedTagHelpers)] = new TagHelpersHolder(tagHelpers);
+    }
+
     public static RazorSyntaxTree GetSyntaxTree(this RazorCodeDocument document)
     {
         if (document == null)
@@ -76,6 +96,26 @@ public static class RazorCodeDocumentExtensions
         }
 
         document.Items[typeof(RazorSyntaxTree)] = syntaxTree;
+    }
+
+    public static RazorSyntaxTree GetInitialSyntaxTree(this RazorCodeDocument document)
+    {
+        if (document == null)
+        {
+            throw new ArgumentNullException(nameof(document));
+        }
+
+        return document.Items["InitialParseTree"] as RazorSyntaxTree;
+    }
+
+    public static void SetInitialSyntaxTree(this RazorCodeDocument document, RazorSyntaxTree syntaxTree)
+    {
+        if (document == null)
+        {
+            throw new ArgumentNullException(nameof(document));
+        }
+
+        document.Items["InitialParseTree"] = syntaxTree;
     }
 
     public static IReadOnlyList<RazorSyntaxTree> GetImportSyntaxTrees(this RazorCodeDocument document)
