@@ -39,6 +39,7 @@ public static class ProjectSetup
 
         var optionsProvider = new TargetPathAnalyzerConfigOptionsProvider(project.AnalyzerOptions.AnalyzerConfigOptionsProvider);
 
+
         // create the generator driver we'll use for the tests
         // the generator we use will be dependent on the build configuration the benchmark is built in
         GeneratorDriver driver = CSharpGeneratorDriver.Create(generators: new[] { new RazorSourceGenerator().AsSourceGenerator() },
