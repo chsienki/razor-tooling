@@ -71,7 +71,7 @@ public static class ProjectSetup
 
     public record RazorProject(GeneratorDriver GeneratorDriver, Compilation Compilation, ImmutableArray<AdditionalText> AdditionalTexts, CSharpParseOptions ParseOptions, AnalyzerConfigOptionsProvider OptionsProvider);
 
-    internal sealed class InMemoryAdditionalText : AdditionalText
+    public sealed class InMemoryAdditionalText : AdditionalText
     {
         private readonly SourceText _text;
 
