@@ -220,12 +220,21 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     var projectEngine = (SourceGeneratorRazorProjectEngine)GetGenerationProjectEngine(allTagHelpers, sourceItem, imports, razorSourceGeneratorOptions);
 
                     var codeDocument = projectEngine.ProcessInitialParse(sourceItem);
+                    RazorSourceGeneratorEventSource.Log.RazorCodeGenerateStop(sourceItem.FilePath);
+
+                    return (projectEngine, hintName, codeDocument, allTagHelpers);
+                });
+
+            var nextProcess = generatedOutput
+                .Select((pair, _) => 
+                {
+                    var (projectEngine, hintName, codeDocument, allTagHelpers) = pair;
+
                     codeDocument = projectEngine.ProcessTagHelpers(codeDocument, allTagHelpers, false);
                     codeDocument = projectEngine.ProcessTagHelpers(codeDocument, allTagHelpers, true);
                     codeDocument = projectEngine.ProcessRemaining(codeDocument);
                     var csharpDocument = codeDocument.GetCSharpDocument();
 
-                    RazorSourceGeneratorEventSource.Log.RazorCodeGenerateStop(sourceItem.FilePath);
                     return (hintName, csharpDocument);
                 })
                 .WithLambdaComparer(static (a, b) =>
@@ -239,7 +248,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     return string.Equals(a.csharpDocument.GeneratedCode, b.csharpDocument.GeneratedCode, StringComparison.Ordinal);
                 }, static a => StringComparer.Ordinal.GetHashCode(a.csharpDocument));
 
-            context.RegisterSourceOutput(generatedOutput, static (context, pair) =>
+            context.RegisterSourceOutput(nextProcess, static (context, pair) =>
             {
                 var (hintName, csharpDocument) = pair;
                 RazorSourceGeneratorEventSource.Log.AddSyntaxTrees(hintName);
