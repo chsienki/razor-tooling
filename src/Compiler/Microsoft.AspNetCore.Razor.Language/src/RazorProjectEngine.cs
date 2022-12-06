@@ -95,56 +95,6 @@ public abstract class RazorProjectEngine
     public static RazorProjectEngine Create(RazorConfiguration configuration, RazorProjectFileSystem fileSystem) => Create(configuration, fileSystem, configure: null);
 
 
-    public static RazorProjectEngine CreateParseEngine(
-        RazorConfiguration configuration,
-        RazorProjectFileSystem fileSystem,
-        Action<RazorProjectEngineBuilder> configure,
-        bool preParse
-        )
-    {
-        var builder = new DefaultRazorProjectEngineBuilder(configuration, fileSystem);
-
-        // The initialization order is somewhat important.
-        //
-        // Defaults -> Extensions -> Additional customization
-        //
-        // This allows extensions to rely on default features, and customizations to override choices made by
-        // extensions.
-        if (preParse)
-        {
-            AddParsePhases(builder.Phases);
-        }
-        else
-        {
-            AddPostParsePhases(builder.Phases);
-        }
-
-        AddDefaultFeatures(builder.Features);
-
-        if (configuration.LanguageVersion.CompareTo(RazorLanguageVersion.Version_5_0) >= 0)
-        {
-            builder.Features.Add(new ViewCssScopePass());
-        }
-
-        if (configuration.LanguageVersion.CompareTo(RazorLanguageVersion.Version_3_0) >= 0)
-        {
-            FunctionsDirective.Register(builder);
-            ImplementsDirective.Register(builder);
-            InheritsDirective.Register(builder);
-            NamespaceDirective.Register(builder);
-            AttributeDirective.Register(builder);
-
-            AddComponentFeatures(builder, configuration.LanguageVersion);
-        }
-
-        LoadExtensions(builder, configuration.Extensions);
-
-        configure?.Invoke(builder);
-
-        return builder.Build();
-    }
-
-
     public static RazorProjectEngine Create(
         RazorConfiguration configuration,
         RazorProjectFileSystem fileSystem,
@@ -205,24 +155,6 @@ public abstract class RazorProjectEngine
         phases.Add(new DefaultRazorOptimizationPhase());
         phases.Add(new DefaultRazorCSharpLoweringPhase());
     }
-
-    private static void AddParsePhases(IList<IRazorEnginePhase> phases)
-    {
-        phases.Add(new DefaultRazorParsingPhase());
-        phases.Add(new DefaultRazorSyntaxTreePhase());
-    }
-
-    private static void AddPostParsePhases(IList<IRazorEnginePhase> phases)
-    {
-        phases.Add(new RazorTagHelperInScopeDiscoveryPhase());
-        phases.Add(new RewriteRazorTagHelperBinderPhase());
-        phases.Add(new DefaultRazorIntermediateNodeLoweringPhase());
-        phases.Add(new DefaultRazorDocumentClassifierPhase());
-        phases.Add(new DefaultRazorDirectiveClassifierPhase());
-        phases.Add(new DefaultRazorOptimizationPhase());
-        phases.Add(new DefaultRazorCSharpLoweringPhase());
-    }
-
 
     private static void AddDefaultFeatures(ICollection<IRazorFeature> features)
     {
