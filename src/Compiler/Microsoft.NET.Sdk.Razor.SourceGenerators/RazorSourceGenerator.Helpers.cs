@@ -137,12 +137,15 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
             return projectEngine;
         }
 
-        internal static SourceGeneratorRazorProjectEngine GetGeneratorProjectEngine(
+        internal record GeneratorEngineWrapper(SourceGeneratorRazorProjectEngine Engine, StaticTagHelperFeature TagHelperFeature);
+
+        internal static GeneratorEngineWrapper GetGeneratorProjectEngine(
             IReadOnlyList<TagHelperDescriptor> tagHelpers,
             SourceGeneratorProjectItem item,
             RazorProjectFileSystem fileSystem,
             RazorSourceGenerationOptions razorSourceGeneratorOptions)
         {
+            var tagHelperFeature = new StaticTagHelperFeature { TagHelpers = tagHelpers };
             var projectEngine = SourceGeneratorRazorProjectEngine.CreateSourceGeneratorEngine(razorSourceGeneratorOptions.Configuration, fileSystem, b =>
             {
                 b.Features.Add(new DefaultTypeNameFeature());
@@ -154,7 +157,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     options.SupportLocalizedComponentNames = razorSourceGeneratorOptions.SupportLocalizedComponentNames;
                 }));
 
-                b.Features.Add(new StaticTagHelperFeature { TagHelpers = tagHelpers });
+                b.Features.Add(tagHelperFeature);
                 b.Features.Add(new DefaultTagHelperDescriptorProvider());
 
                 CompilerFeatures.Register(b);
@@ -163,7 +166,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 b.SetCSharpLanguageVersion(razorSourceGeneratorOptions.CSharpLanguageVersion);
             });
 
-            return projectEngine;
+            return new GeneratorEngineWrapper(projectEngine, tagHelperFeature);
 
         }
 

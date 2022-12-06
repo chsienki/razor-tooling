@@ -114,24 +114,8 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     var result = (IList<TagHelperDescriptor>)tagHelperFeature.GetDescriptors();
                     RazorSourceGeneratorEventSource.Log.DiscoverTagHelpersFromCompilationStop();
                     return result;
-                })
-                .WithLambdaComparer(static (a, b) =>
-                {
-                    if (a.Count != b.Count)
-                    {
-                        return false;
-                    }
-
-                    for (var i = 0; i < a.Count; i++)
-                    {
-                        if (!a[i].Equals(b[i]))
-                        {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                }, getHashCode: static a => a.Count);
+                });
+              
 
             var tagHelpersFromReferences = compilation
                 .Combine(razorSourceGeneratorOptions)
@@ -208,8 +192,8 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 });
 
 
-
-            var sourceItemsEx = sourceItems.AsProjectItemEx(importFiles, razorSourceGeneratorOptions);
+            // INVESTIGATION: joining the project item creation and initial parse together has very little effect :/
+            //var sourceItemsEx = sourceItems.AsProjectItemEx(importFiles, razorSourceGeneratorOptions);
 
 
 
@@ -220,12 +204,28 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
             // TODO: right. We don't want to do the actual NoRewritePhase as part of the initial parsing
 
             // parse the razor files up to the point where they are independent
-            var initialParseItems = sourceItemsEx
-                .Select((item, _) =>
-                {
+            //var initialParseItems = sourceItemsEx
 
-                    var engine = GetGeneratorProjectEngine(Array.Empty<TagHelperDescriptor>(), item.Item, item.FileSystem, item.Options);
-                    return item with { CodeDocument = engine.ProcessInitialParse(item.Item) };
+            var initialParseItems = sourceItems
+                .Combine(importFiles.Collect())
+                .WithLambdaComparer((old, @new) => old.Left.Equals(@new.Left) && Enumerable.SequenceEqual(old.Right, @new.Right), (item) => item.GetHashCode())
+                .Combine(razorSourceGeneratorOptions)
+                .Select((combined, _) =>
+                {
+                    var ((item, imports), options) = combined;
+
+                    var fileSystem = new VirtualRazorProjectFileSystem();
+                    fileSystem.Add(item);
+                    foreach (var import in imports)
+                    {
+                        fileSystem.Add(import);
+                    }
+                    
+                    // INVESTIGATION: sharing the project engine between steps improves perf slightly (a few ms and a few MB) but nothing obviously substantial.
+                    var engine = GetGeneratorProjectEngine(Array.Empty<TagHelperDescriptor>(), item, fileSystem, options);
+                    var codeDocument = engine.Engine.ProcessInitialParse(item);
+
+                    return (new RazorProjectItemEx(item, imports, fileSystem, options, codeDocument), engine);
                 });
 
             // now we need to do the first parse, with whatever tag helpers we have (but don't care if they changed)
@@ -234,35 +234,40 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 .WithLambdaComparer((old, @new) => old.Left.Equals(@new.Left), (item) => item.GetHashCode())
                 .Select((combined, _) =>
                 {
-                    var (document, tagHelpers) = combined;
+                    var ((document, engine), tagHelpers) = combined;
 
-                    var tagHelperEngine = GetGeneratorProjectEngine(tagHelpers, document.Item, document.FileSystem, document.Options);
-                    return document with { CodeDocument = tagHelperEngine.ProcessTagHelpers(document.CodeDocument!, tagHelpers, checkForIdempotency: false) };
+                    //var tagHelperEngine = GetGeneratorProjectEngine(tagHelpers, document.Item, document.FileSystem, document.Options);
+                    engine.TagHelperFeature.TagHelpers = tagHelpers;
+
+                    return (document with { CodeDocument = engine.Engine.ProcessTagHelpers(document.CodeDocument!, tagHelpers, checkForIdempotency: false) }, engine);
                 });
 
-            // next we do a second parse, but check for idempotency. If the tag helpers used on the previous parse match, the compiler can skip recomputing them
+            // INVESTIGATION: this step add about 10ms / 5MB allocation. Probably not a big culprit.
+
+            // next we do a second parse, but check for idempotency. If the tag helpers used on the previous parse match, the compiler can skip re-computing them
             var secondaryTagHelperParseItems = initialTagHelperParseItems
                 .Combine(allTagHelpers)
                 .Select((combined, _) =>
                 {
-                    var (document, tagHelpers) = combined;
+                    var ((document, engine), tagHelpers) = combined;
 
-                    var tagHelperEngine = GetGeneratorProjectEngine(tagHelpers, document.Item, document.FileSystem, document.Options);
-                    return document with { CodeDocument = tagHelperEngine.ProcessTagHelpers(document.CodeDocument!, tagHelpers, checkForIdempotency: true) };
+                    //var tagHelperEngine = GetGeneratorProjectEngine(tagHelpers, document.Item, document.FileSystem, document.Options);
+                    var oldDoc = document.CodeDocument;
+                    var codeDoc = engine.Engine.ProcessTagHelpers(document.CodeDocument!, tagHelpers, checkForIdempotency: true);
+                    if (oldDoc != codeDoc)
+                    {
+                        return (document with { CodeDocument = engine.Engine.ProcessTagHelpers(document.CodeDocument!, tagHelpers, checkForIdempotency: true) }, engine);
+                    }
+                    return (document, engine);
                 });
 
             // at this point we can perform the rest of the parse
             var parsedRazorDocs = secondaryTagHelperParseItems
-                .Select((document, _) =>
+                .Select((pair, _) =>
                 {
-                    var engine = GetGeneratorProjectEngine(Array.Empty<TagHelperDescriptor>(), document.Item, document.FileSystem, document.Options);
-                    return document with { CodeDocument = engine.ProcessRemaining(document.CodeDocument!) };
-                });
-            var generatedOutput = parsedRazorDocs
-                .Select(static (document, _) =>
-                {
-                    // PROTOTYPE: this step is basically not needed now. we're just adding a file path
+                    var (document, engine) = pair;
                     RazorSourceGeneratorEventSource.Log.RazorCodeGenerateStart(document.Item.FilePath);
+                    document = document with { CodeDocument = engine.Engine.ProcessRemaining(document.CodeDocument!) };
 
                     // Add a generated suffix so tools, such as coverlet, consider the file to be generated
                     var hintName = GetIdentifierFromPath(document.Item.RelativePhysicalPath) + ".g.cs";
@@ -282,7 +287,33 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     return string.Equals(a.csharpDocument.GeneratedCode, b.csharpDocument.GeneratedCode, StringComparison.Ordinal);
                 }, static a => StringComparer.Ordinal.GetHashCode(a.csharpDocument));
 
-            context.RegisterSourceOutput(generatedOutput, static (context, pair) =>
+            // INVESTIGATION: dropping an extra step does improve things (because the generator driver is doing less work. Should consider consolidating more steps if possible).
+
+            //var generatedOutput = parsedRazorDocs
+            //    .Select(static (document, _) =>
+            //    {
+            //        // PROTOTYPE: this step is basically not needed now. we're just adding a file path
+            //        RazorSourceGeneratorEventSource.Log.RazorCodeGenerateStart(document.Item.FilePath);
+
+            //        // Add a generated suffix so tools, such as coverlet, consider the file to be generated
+            //        var hintName = GetIdentifierFromPath(document.Item.RelativePhysicalPath) + ".g.cs";
+            //        var csharpDocument = document.CodeDocument.GetCSharpDocument();
+
+            //        RazorSourceGeneratorEventSource.Log.RazorCodeGenerateStop(document.Item.FilePath);
+            //        return (hintName, csharpDocument);
+            //    })
+            //    .WithLambdaComparer(static (a, b) =>
+            //    {
+            //        if (a.csharpDocument.Diagnostics.Count > 0 || b.csharpDocument.Diagnostics.Count > 0)
+            //        {
+            //            // if there are any diagnostics, treat the documents as unequal and force RegisterSourceOutput to be called uncached.
+            //            return false;
+            //        }
+
+            //        return string.Equals(a.csharpDocument.GeneratedCode, b.csharpDocument.GeneratedCode, StringComparison.Ordinal);
+            //    }, static a => StringComparer.Ordinal.GetHashCode(a.csharpDocument));
+
+            context.RegisterSourceOutput(parsedRazorDocs, static (context, pair) =>
             {
                 var (hintName, csharpDocument) = pair;
                 RazorSourceGeneratorEventSource.Log.AddSyntaxTrees(hintName);
