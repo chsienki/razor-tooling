@@ -117,7 +117,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
         }
 
 
-        internal static SourceGeneratorRazorProjectEngine GetGenerationProjectEngine(
+        internal static RazorProjectEngine GetGenerationProjectEngine(
             IReadOnlyList<TagHelperDescriptor> tagHelpers,
             SourceGeneratorProjectItem item,
             IEnumerable<SourceGeneratorProjectItem> imports,
@@ -130,7 +130,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 fileSystem.Add(import);
             }
 
-            var projectEngine = (SourceGeneratorRazorProjectEngine)SourceGeneratorRazorProjectEngine.Create(razorSourceGeneratorOptions.Configuration, fileSystem, b =>
+            var projectEngine = SourceGeneratorRazorProjectEngine.CreateSourceGeneratorEngine(razorSourceGeneratorOptions.Configuration, fileSystem, b =>
             {
                 b.Features.Add(new DefaultTypeNameFeature());
                 b.SetRootNamespace(razorSourceGeneratorOptions.RootNamespace);
