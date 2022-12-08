@@ -91,6 +91,9 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     return CSharpSyntaxTree.ParseText(generatedDeclarationCode, (CSharpParseOptions)parseOptions);
                 });
 
+            // TODO: we need to untangle the razor files from the compilation
+            //       that will allow us to not re-parse the razor ones each time, and ensure they compare equal down
+            //       the line via reference, speeding things up there too.
             var tagHelpersFromCompilation = compilation
                 .Combine(generatedDeclarationSyntaxTrees.Collect())
                 .Combine(razorSourceGeneratorOptions)
@@ -111,24 +114,8 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     var result = (IList<TagHelperDescriptor>)tagHelperFeature.GetDescriptors();
                     RazorSourceGeneratorEventSource.Log.DiscoverTagHelpersFromCompilationStop();
                     return result;
-                })
-                .WithLambdaComparer(static (a, b) =>
-                {
-                    if (a.Count != b.Count)
-                    {
-                        return false;
-                    }
+                });
 
-                    for (var i = 0; i < a.Count; i++)
-                    {
-                        if (!a[i].Equals(b[i]))
-                        {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                }, getHashCode: static a => a.Count);
 
             var tagHelpersFromReferences = compilation
                 .Combine(razorSourceGeneratorOptions)
