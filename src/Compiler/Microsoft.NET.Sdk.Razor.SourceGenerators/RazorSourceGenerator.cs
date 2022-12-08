@@ -193,27 +193,30 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
 
             var initialProcess = sourceItems
                 .Combine(importFiles.Collect())
-                .Combine(allTagHelpers)
                 .Combine(razorSourceGeneratorOptions)
                 .Select(static (pair, _) =>
                 {
-                    var (((sourceItem, imports), allTagHelpers), razorSourceGeneratorOptions) = pair;
+                    var ((sourceItem, imports), razorSourceGeneratorOptions) = pair;
 
                     RazorSourceGeneratorEventSource.Log.RazorCodeGenerateStart(sourceItem.FilePath);
 
                     // Add a generated suffix so tools, such as coverlet, consider the file to be generated
                     var hintName = GetIdentifierFromPath(sourceItem.RelativePhysicalPath) + ".g.cs";
 
-                    var projectEngine = (SourceGeneratorRazorProjectEngine)GetGenerationProjectEngine(allTagHelpers, sourceItem, imports, razorSourceGeneratorOptions);
+                    var tagHelperFeature = new StaticTagHelperFeature();
+                    var projectEngine = (SourceGeneratorRazorProjectEngine)GetGenerationProjectEngine(sourceItem, imports, razorSourceGeneratorOptions, tagHelperFeature);
 
                     var codeDocument = projectEngine.ProcessInitialParse(sourceItem);
                     RazorSourceGeneratorEventSource.Log.RazorCodeGenerateStop(sourceItem.FilePath);
 
-                    return (projectEngine, hintName, codeDocument, allTagHelpers);
+                    return (projectEngine, hintName, codeDocument, tagHelperFeature);
                 })
+                .Combine(allTagHelpers)
                 .Select((pair, _) =>
                 {
-                    var (projectEngine, hintName, codeDocument, allTagHelpers) = pair;
+                    var ((projectEngine, hintName, codeDocument, tagHelperFeature), allTagHelpers) = pair;
+
+                    tagHelperFeature.TagHelpers = allTagHelpers;
                     codeDocument = projectEngine.ProcessTagHelpers(codeDocument, allTagHelpers, false);
                     return (projectEngine, hintName, codeDocument, allTagHelpers);
                 })

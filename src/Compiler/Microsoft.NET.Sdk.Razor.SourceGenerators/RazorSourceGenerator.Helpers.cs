@@ -118,10 +118,10 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
 
 
         internal static RazorProjectEngine GetGenerationProjectEngine(
-            IReadOnlyList<TagHelperDescriptor> tagHelpers,
             SourceGeneratorProjectItem item,
             IEnumerable<SourceGeneratorProjectItem> imports,
-            RazorSourceGenerationOptions razorSourceGeneratorOptions)
+            RazorSourceGenerationOptions razorSourceGeneratorOptions,
+            StaticTagHelperFeature tagHelperFeature)
         {
             var fileSystem = new VirtualRazorProjectFileSystem();
             fileSystem.Add(item);
@@ -141,7 +141,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     options.SupportLocalizedComponentNames = razorSourceGeneratorOptions.SupportLocalizedComponentNames;
                 }));
 
-                b.Features.Add(new StaticTagHelperFeature { TagHelpers = tagHelpers });
+                b.Features.Add(tagHelperFeature);
                 b.Features.Add(new DefaultTagHelperDescriptorProvider());
 
                 CompilerFeatures.Register(b);
