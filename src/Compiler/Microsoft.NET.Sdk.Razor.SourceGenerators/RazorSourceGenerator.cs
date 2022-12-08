@@ -221,11 +221,14 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
 
                     tagHelperFeature.TagHelpers = allTagHelpers;
                     codeDocument = projectEngine.ProcessTagHelpers(codeDocument, allTagHelpers, false);
-                    return (projectEngine, hintName, codeDocument, allTagHelpers);
+                    return (projectEngine, hintName, codeDocument);
                 })
+
+                // next we do a second parse, along with the helper, but check for idempotency. If the tag helpers used on the previous parse match, the compiler can skip re-computing them
+                .Combine(allTagHelpers)
                 .Select((pair, _) => {
                     
-                    var (projectEngine, hintName, codeDocument, allTagHelpers) = pair;
+                    var ((projectEngine, hintName, codeDocument), allTagHelpers) = pair;
                     codeDocument = projectEngine.ProcessTagHelpers(codeDocument, allTagHelpers, true);
                     return (projectEngine, hintName, codeDocument);
                 })
