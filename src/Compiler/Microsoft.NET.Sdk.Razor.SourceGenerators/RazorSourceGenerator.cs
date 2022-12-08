@@ -228,11 +228,14 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 {
                     var (projectEngine, hintName, codeDocument, allTagHelpers) = pair;
                     codeDocument = projectEngine.ProcessTagHelpers(codeDocument, allTagHelpers, false);
+                    return (projectEngine, hintName, codeDocument, allTagHelpers);
+                })
+                .Select((pair, _) => {
+                    
+                    var (projectEngine, hintName, codeDocument, allTagHelpers) = pair;
                     codeDocument = projectEngine.ProcessTagHelpers(codeDocument, allTagHelpers, true);
                     return (projectEngine, hintName, codeDocument);
                 })
-
-            //var processRemaining = nextProcess
                 .Select((pair, _) =>
                 {
                     var (projectEngine, hintName, codeDocument) = pair;
