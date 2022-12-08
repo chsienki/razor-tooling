@@ -2512,11 +2512,11 @@ namespace MyApp.Pages
 
             var engine = RazorSourceGenerator.GetGeneratorProjectEngine(tagHelpers, projectItem, fs, new RazorSourceGenerationOptions());
 
-            var codeDocument = engine.ProcessInitialParse(projectItem);
+            var codeDocument = engine.Engine.ProcessInitialParse(projectItem);
 
-            codeDocument = engine.ProcessTagHelpers(codeDocument, tagHelpers, checkForIdempotency: false);
-            codeDocument = engine.ProcessTagHelpers(codeDocument, tagHelpers, checkForIdempotency: true);
-            codeDocument = engine.ProcessRemaining(codeDocument);
+            codeDocument = engine.Engine.ProcessTagHelpers(codeDocument, tagHelpers, checkForIdempotency: false);
+            codeDocument = engine.Engine.ProcessTagHelpers(codeDocument, tagHelpers, checkForIdempotency: true);
+            codeDocument = engine.Engine.ProcessRemaining(codeDocument);
 
             var cSharp = codeDocument.GetCSharpDocument().GeneratedCode;
             Assert.Contains("button", cSharp);

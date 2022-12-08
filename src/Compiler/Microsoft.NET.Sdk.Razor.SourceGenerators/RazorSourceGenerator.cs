@@ -204,7 +204,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     return allTagHelpers;
                 });
 
-            var generatedOutput = sourceItems
+            var initialProcess = sourceItems
                 .Combine(importFiles.Collect())
                 .Combine(allTagHelpers)
                 .Combine(razorSourceGeneratorOptions)
@@ -223,15 +223,19 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     RazorSourceGeneratorEventSource.Log.RazorCodeGenerateStop(sourceItem.FilePath);
 
                     return (projectEngine, hintName, codeDocument, allTagHelpers);
-                });
-
-            var nextProcess = generatedOutput
-                .Select((pair, _) => 
+                })
+                .Select((pair, _) =>
                 {
                     var (projectEngine, hintName, codeDocument, allTagHelpers) = pair;
-
                     codeDocument = projectEngine.ProcessTagHelpers(codeDocument, allTagHelpers, false);
                     codeDocument = projectEngine.ProcessTagHelpers(codeDocument, allTagHelpers, true);
+            //        return (projectEngine, hintName, codeDocument);
+            //    });
+
+            //var processRemaining = nextProcess
+            //    .Select((pair, _) =>
+            //    {
+            //        var (projectEngine, hintName, codeDocument) = pair;
                     codeDocument = projectEngine.ProcessRemaining(codeDocument);
                     var csharpDocument = codeDocument.GetCSharpDocument();
 
@@ -248,7 +252,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     return string.Equals(a.csharpDocument.GeneratedCode, b.csharpDocument.GeneratedCode, StringComparison.Ordinal);
                 }, static a => StringComparer.Ordinal.GetHashCode(a.csharpDocument));
 
-            context.RegisterSourceOutput(nextProcess, static (context, pair) =>
+            context.RegisterSourceOutput(initialProcess, static (context, pair) =>
             {
                 var (hintName, csharpDocument) = pair;
                 RazorSourceGeneratorEventSource.Log.AddSyntaxTrees(hintName);
