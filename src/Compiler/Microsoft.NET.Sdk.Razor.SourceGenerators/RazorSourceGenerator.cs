@@ -211,7 +211,10 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
 
                     return (projectEngine, hintName, codeDocument, tagHelperFeature);
                 })
+
+                // Add the tag helpers in, but ignore if they've changed or not
                 .Combine(allTagHelpers)
+                .WithLambdaComparer((old, @new) => old.Left.Equals(@new.Left), (item) => item.GetHashCode())
                 .Select((pair, _) =>
                 {
                     var ((projectEngine, hintName, codeDocument, tagHelperFeature), allTagHelpers) = pair;
