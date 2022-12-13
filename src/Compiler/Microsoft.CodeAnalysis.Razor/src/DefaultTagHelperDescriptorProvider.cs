@@ -40,7 +40,7 @@ public sealed class DefaultTagHelperDescriptorProvider : RazorEngineFeatureBase,
         var targetAssembly = context.Items.GetTargetAssembly();
         if (targetAssembly is not null)
         {
-            visitor.Visit(targetAssembly.GlobalNamespace);
+            visitor.Visit(targetAssembly);
         }
         else
         {

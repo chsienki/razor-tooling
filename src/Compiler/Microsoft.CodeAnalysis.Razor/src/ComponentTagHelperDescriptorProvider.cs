@@ -52,7 +52,7 @@ internal class ComponentTagHelperDescriptorProvider : RazorEngineFeatureBase, IT
         var targetAssembly = context.Items.GetTargetAssembly();
         if (targetAssembly is not null)
         {
-            visitor.Visit(targetAssembly.GlobalNamespace);
+            visitor.Visit(targetAssembly);
         }
         else
         {
@@ -133,7 +133,7 @@ internal class ComponentTagHelperDescriptorProvider : RazorEngineFeatureBase, IT
 
             var cascadeGenericTypeAttributes = type
                 .GetAttributes()
-                .Where(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, symbols.CascadingTypeParameterAttribute))
+                .Where(a => EqualByName(a.AttributeClass, ComponentsApi.CascadingTypeParameterAttribute.MetadataName))
                 .Select(attribute => attribute.ConstructorArguments.FirstOrDefault().Value as string)
                 .ToList();
 
@@ -459,7 +459,7 @@ internal class ComponentTagHelperDescriptorProvider : RazorEngineFeatureBase, IT
         var properties = new Dictionary<string, (IPropertySymbol, PropertyKind)>(StringComparer.Ordinal);
         do
         {
-            if (SymbolEqualityComparer.Default.Equals(type, symbols.ComponentBase))
+            if (EqualByName(type, ComponentsApi.ComponentBase.MetadataName))
             {
                 // The ComponentBase base class doesn't have any [Parameter].
                 // Bail out now to avoid walking through its many members, plus the members
@@ -512,7 +512,7 @@ internal class ComponentTagHelperDescriptorProvider : RazorEngineFeatureBase, IT
                     kind = PropertyKind.Ignored;
                 }
 
-                if (!property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, symbols.ParameterAttribute)))
+                if (!property.GetAttributes().Any(a => EqualByName(a.AttributeClass, ComponentsApi.ParameterAttribute.MetadataName)))
                 {
                     if (property.IsOverride)
                     {
@@ -530,7 +530,7 @@ internal class ComponentTagHelperDescriptorProvider : RazorEngineFeatureBase, IT
                     kind = PropertyKind.Enum;
                 }
 
-                if (kind == PropertyKind.Default && SymbolEqualityComparer.Default.Equals(property.Type, symbols.RenderFragment))
+                if (kind == PropertyKind.Default && EqualByName(property.Type, ComponentsApi.RenderFragment.MetadataName))
                 {
                     kind = PropertyKind.ChildContent;
                 }
@@ -538,12 +538,12 @@ internal class ComponentTagHelperDescriptorProvider : RazorEngineFeatureBase, IT
                 if (kind == PropertyKind.Default &&
                     property.Type is INamedTypeSymbol namedType &&
                     namedType.IsGenericType &&
-                    SymbolEqualityComparer.Default.Equals(namedType.ConstructedFrom, symbols.RenderFragmentOfT))
+                    EqualByName(namedType.ConstructedFrom, ComponentsApi.RenderFragmentOfT.DisplayName))
                 {
                     kind = PropertyKind.ChildContent;
                 }
 
-                if (kind == PropertyKind.Default && SymbolEqualityComparer.Default.Equals(property.Type, symbols.EventCallback))
+                if (kind == PropertyKind.Default && EqualByName(property.Type, ComponentsApi.EventCallback.MetadataName))
                 {
                     kind = PropertyKind.EventCallback;
                 }
@@ -551,7 +551,7 @@ internal class ComponentTagHelperDescriptorProvider : RazorEngineFeatureBase, IT
                 if (kind == PropertyKind.Default &&
                     property.Type is INamedTypeSymbol namedType2 &&
                     namedType2.IsGenericType &&
-                    SymbolEqualityComparer.Default.Equals(namedType2.ConstructedFrom, symbols.EventCallbackOfT))
+                    EqualByName(namedType2.ConstructedFrom, ComponentsApi.EventCallbackOfT.DisplayName))
                 {
                     kind = PropertyKind.EventCallback;
                 }
@@ -569,6 +569,11 @@ internal class ComponentTagHelperDescriptorProvider : RazorEngineFeatureBase, IT
         while (type != null);
 
         return properties.Values;
+    }
+
+    private bool EqualByName(ITypeSymbol symbol, string name)
+    {
+        return string.Equals(symbol.ToDisplayString(FullNameTypeDisplayFormat), name, StringComparison.OrdinalIgnoreCase);
     }
 
     private enum PropertyKind
@@ -590,60 +595,60 @@ internal class ComponentTagHelperDescriptorProvider : RazorEngineFeatureBase, IT
             // be unpredictable.
             var symbols = new ComponentSymbols();
 
-            symbols.ComponentBase = compilation.GetTypeByMetadataName(ComponentsApi.ComponentBase.MetadataName);
-            if (symbols.ComponentBase == null)
-            {
-                // No definition for ComponentBase, nothing to do.
-                return null;
-            }
+            //symbols.ComponentBase = compilation.GetTypeByMetadataName(ComponentsApi.ComponentBase.MetadataName);
+            //if (symbols.ComponentBase == null)
+            //{
+            //    // No definition for ComponentBase, nothing to do.
+            //    return null;
+            //}
 
-            symbols.IComponent = compilation.GetTypeByMetadataName(ComponentsApi.IComponent.MetadataName);
-            if (symbols.IComponent == null)
-            {
-                // No definition for IComponent, nothing to do.
-                return null;
-            }
+            //symbols.IComponent = compilation.GetTypeByMetadataName(ComponentsApi.IComponent.MetadataName);
+            //if (symbols.IComponent == null)
+            //{
+            //    // No definition for IComponent, nothing to do.
+            //    return null;
+            //}
 
-            symbols.ParameterAttribute = compilation.GetTypeByMetadataName(ComponentsApi.ParameterAttribute.MetadataName);
-            if (symbols.ParameterAttribute == null)
-            {
-                // No definition for [Parameter], nothing to do.
-                return null;
-            }
+            //symbols.ParameterAttribute = compilation.GetTypeByMetadataName(ComponentsApi.ParameterAttribute.MetadataName);
+            //if (symbols.ParameterAttribute == null)
+            //{
+            //    // No definition for [Parameter], nothing to do.
+            //    return null;
+            //}
 
-            symbols.RenderFragment = compilation.GetTypeByMetadataName(ComponentsApi.RenderFragment.MetadataName);
-            if (symbols.RenderFragment == null)
-            {
-                // No definition for RenderFragment, nothing to do.
-                return null;
-            }
+            //symbols.RenderFragment = compilation.GetTypeByMetadataName(ComponentsApi.RenderFragment.MetadataName);
+            //if (symbols.RenderFragment == null)
+            //{
+            //    // No definition for RenderFragment, nothing to do.
+            //    return null;
+            //}
 
-            symbols.RenderFragmentOfT = compilation.GetTypeByMetadataName(ComponentsApi.RenderFragmentOfT.MetadataName);
-            if (symbols.RenderFragmentOfT == null)
-            {
-                // No definition for RenderFragment<T>, nothing to do.
-                return null;
-            }
+            //symbols.RenderFragmentOfT = compilation.GetTypeByMetadataName(ComponentsApi.RenderFragmentOfT.MetadataName);
+            //if (symbols.RenderFragmentOfT == null)
+            //{
+            //    // No definition for RenderFragment<T>, nothing to do.
+            //    return null;
+            //}
 
-            symbols.EventCallback = compilation.GetTypeByMetadataName(ComponentsApi.EventCallback.MetadataName);
-            if (symbols.EventCallback == null)
-            {
-                // No definition for EventCallback, nothing to do.
-                return null;
-            }
+            //symbols.EventCallback = compilation.GetTypeByMetadataName(ComponentsApi.EventCallback.MetadataName);
+            //if (symbols.EventCallback == null)
+            //{
+            //    // No definition for EventCallback, nothing to do.
+            //    return null;
+            //}
 
-            symbols.EventCallbackOfT = compilation.GetTypeByMetadataName(ComponentsApi.EventCallbackOfT.MetadataName);
-            if (symbols.EventCallbackOfT == null)
-            {
-                // No definition for EventCallback<T>, nothing to do.
-                return null;
-            }
+            //symbols.EventCallbackOfT = compilation.GetTypeByMetadataName(ComponentsApi.EventCallbackOfT.MetadataName);
+            //if (symbols.EventCallbackOfT == null)
+            //{
+            //    // No definition for EventCallback<T>, nothing to do.
+            //    return null;
+            //}
 
-            symbols.CascadingTypeParameterAttribute = compilation.GetTypeByMetadataName(ComponentsApi.CascadingTypeParameterAttribute.MetadataName);
-            if (symbols.CascadingTypeParameterAttribute == null)
-            {
-                // No definition for [CascadingTypeParameter]. For back-compat, just don't activate this feature.
-            }
+            //symbols.CascadingTypeParameterAttribute = compilation.GetTypeByMetadataName(ComponentsApi.CascadingTypeParameterAttribute.MetadataName);
+            //if (symbols.CascadingTypeParameterAttribute == null)
+            //{
+            //    // No definition for [CascadingTypeParameter]. For back-compat, just don't activate this feature.
+            //}
 
             return symbols;
         }
@@ -652,21 +657,21 @@ internal class ComponentTagHelperDescriptorProvider : RazorEngineFeatureBase, IT
         {
         }
 
-        public INamedTypeSymbol ComponentBase { get; private set; }
+        //public INamedTypeSymbol ComponentBase { get; private set; }
 
-        public INamedTypeSymbol IComponent { get; private set; }
+        //public INamedTypeSymbol IComponent { get; private set; }
 
-        public INamedTypeSymbol ParameterAttribute { get; private set; }
+       // public INamedTypeSymbol ParameterAttribute { get; private set; }
 
-        public INamedTypeSymbol RenderFragment { get; private set; }
+        //public INamedTypeSymbol RenderFragment { get; private set; }
 
-        public INamedTypeSymbol RenderFragmentOfT { get; private set; }
+        //public INamedTypeSymbol RenderFragmentOfT { get; private set; }
 
-        public INamedTypeSymbol EventCallback { get; private set; }
+        //public INamedTypeSymbol EventCallback { get; private set; }
 
-        public INamedTypeSymbol EventCallbackOfT { get; private set; }
+        //public INamedTypeSymbol EventCallbackOfT { get; private set; }
 
-        public INamedTypeSymbol CascadingTypeParameterAttribute { get; private set; }
+        //public INamedTypeSymbol CascadingTypeParameterAttribute { get; private set; }
     }
 
     private class ComponentTypeVisitor : SymbolVisitor
@@ -713,7 +718,7 @@ internal class ComponentTagHelperDescriptorProvider : RazorEngineFeatureBase, IT
                 return false;
             }
 
-            var isComponent = ComponentDetectionConventions.IsComponent(symbol, _symbols.IComponent);
+            var isComponent = ComponentDetectionConventions.IsComponent(symbol, ComponentsApi.IComponent.MetadataName);
             return isComponent;
         }
     }

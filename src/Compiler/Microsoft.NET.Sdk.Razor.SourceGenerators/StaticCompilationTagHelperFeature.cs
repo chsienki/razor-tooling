@@ -39,7 +39,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
 
         public Compilation? Compilation { get; set; }
 
-        public IAssemblySymbol? TargetAssembly { get; set; }
+        public ISymbol? TargetAssembly { get; set; }
 
         protected override void OnInitialized()
         {

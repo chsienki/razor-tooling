@@ -65,7 +65,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
             return (razorSourceGenerationOptions, diagnostic);
         }
 
-        private static (SourceGeneratorProjectItem?, Diagnostic?) ComputeProjectItems((AdditionalText, AnalyzerConfigOptionsProvider) pair, CancellationToken ct)
+        public static (SourceGeneratorProjectItem?, Diagnostic?) ComputeProjectItems((AdditionalText, AnalyzerConfigOptionsProvider) pair, CancellationToken ct)
         {
             var (additionalText, globalOptions) = pair;
             var options = globalOptions.GetOptions(additionalText);

@@ -68,13 +68,14 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
 
         internal static RazorProjectEngine GetDiscoveryProjectEngine(
             IReadOnlyList<MetadataReference> references,
-            StaticCompilationTagHelperFeature tagHelperFeature)
+            StaticCompilationTagHelperFeature tagHelperFeature, bool useDefault)
         {
             var discoveryProjectEngine = RazorProjectEngine.Create(RazorConfiguration.Default, new VirtualRazorProjectFileSystem(), b =>
             {
                 b.Features.Add(new DefaultMetadataReferenceFeature { References = references });
                 b.Features.Add(tagHelperFeature);
-                b.Features.Add(new DefaultTagHelperDescriptorProvider());
+                if(useDefault)
+                    b.Features.Add(new DefaultTagHelperDescriptorProvider());
 
                 CompilerFeatures.Register(b);
                 RazorExtensions.Register(b);

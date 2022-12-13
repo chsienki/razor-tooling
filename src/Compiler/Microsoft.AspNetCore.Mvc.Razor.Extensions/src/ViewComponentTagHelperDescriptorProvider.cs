@@ -43,7 +43,7 @@ public sealed class ViewComponentTagHelperDescriptorProvider : RazorEngineFeatur
         var targetAssembly = context.Items.GetTargetAssembly();
         if (targetAssembly is not null)
         {
-            visitor.Visit(targetAssembly.GlobalNamespace);
+            visitor.Visit(targetAssembly);
         }
         else
         {

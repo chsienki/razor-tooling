@@ -17,13 +17,13 @@ internal class DefaultTagHelperDescriptorFactory
 {
     private const string TagHelperNameEnding = "TagHelper";
 
-    private readonly INamedTypeSymbol _htmlAttributeNameAttributeSymbol;
-    private readonly INamedTypeSymbol _htmlAttributeNotBoundAttributeSymbol;
-    private readonly INamedTypeSymbol _htmlTargetElementAttributeSymbol;
-    private readonly INamedTypeSymbol _outputElementHintAttributeSymbol;
-    private readonly INamedTypeSymbol _iDictionarySymbol;
-    private readonly INamedTypeSymbol _restrictChildrenAttributeSymbol;
-    private readonly INamedTypeSymbol _editorBrowsableAttributeSymbol;
+    //private readonly INamedTypeSymbol _htmlAttributeNameAttributeSymbol;
+    //private readonly INamedTypeSymbol _htmlAttributeNotBoundAttributeSymbol;
+    //private readonly INamedTypeSymbol _htmlTargetElementAttributeSymbol;
+    //private readonly INamedTypeSymbol _outputElementHintAttributeSymbol;
+    //private readonly INamedTypeSymbol _iDictionarySymbol;
+    //private readonly INamedTypeSymbol _restrictChildrenAttributeSymbol;
+    //private readonly INamedTypeSymbol _editorBrowsableAttributeSymbol;
 
     internal static readonly SymbolDisplayFormat FullNameTypeDisplayFormat =
         SymbolDisplayFormat.FullyQualifiedFormat
@@ -35,13 +35,13 @@ internal class DefaultTagHelperDescriptorFactory
         IncludeDocumentation = includeDocumentation;
         ExcludeHidden = excludeHidden;
 
-        _htmlAttributeNameAttributeSymbol = compilation.GetTypeByMetadataName(TagHelperTypes.HtmlAttributeNameAttribute);
-        _htmlAttributeNotBoundAttributeSymbol = compilation.GetTypeByMetadataName(TagHelperTypes.HtmlAttributeNotBoundAttribute);
-        _htmlTargetElementAttributeSymbol = compilation.GetTypeByMetadataName(TagHelperTypes.HtmlTargetElementAttribute);
-        _outputElementHintAttributeSymbol = compilation.GetTypeByMetadataName(TagHelperTypes.OutputElementHintAttribute);
-        _restrictChildrenAttributeSymbol = compilation.GetTypeByMetadataName(TagHelperTypes.RestrictChildrenAttribute);
-        _editorBrowsableAttributeSymbol = compilation.GetTypeByMetadataName(typeof(EditorBrowsableAttribute).FullName);
-        _iDictionarySymbol = compilation.GetTypeByMetadataName(TagHelperTypes.IDictionary);
+        //_htmlAttributeNameAttributeSymbol = compilation.GetTypeByMetadataName(TagHelperTypes.HtmlAttributeNameAttribute);
+        //_htmlAttributeNotBoundAttributeSymbol = compilation.GetTypeByMetadataName(TagHelperTypes.HtmlAttributeNotBoundAttribute);
+        //_htmlTargetElementAttributeSymbol = compilation.GetTypeByMetadataName(TagHelperTypes.HtmlTargetElementAttribute);
+        //_outputElementHintAttributeSymbol = compilation.GetTypeByMetadataName(TagHelperTypes.OutputElementHintAttribute);
+        //_restrictChildrenAttributeSymbol = compilation.GetTypeByMetadataName(TagHelperTypes.RestrictChildrenAttribute);
+        //_editorBrowsableAttributeSymbol = compilation.GetTypeByMetadataName(typeof(EditorBrowsableAttribute).FullName);
+        //_iDictionarySymbol = compilation.GetTypeByMetadataName(TagHelperTypes.IDictionary);
     }
 
     protected bool ExcludeHidden { get; }
@@ -84,7 +84,7 @@ internal class DefaultTagHelperDescriptorFactory
     {
         var targetElementAttributes = type
             .GetAttributes()
-            .Where(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, _htmlTargetElementAttributeSymbol));
+            .Where(attribute => EqualByName(attribute.AttributeClass, TagHelperTypes.HtmlTargetElementAttribute));
 
         // If there isn't an attribute specifying the tag name derive it from the name
         if (!targetElementAttributes.Any())
@@ -143,7 +143,7 @@ internal class DefaultTagHelperDescriptorFactory
 
     private void AddAllowedChildren(INamedTypeSymbol type, TagHelperDescriptorBuilder builder)
     {
-        var restrictChildrenAttribute = type.GetAttributes().Where(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, _restrictChildrenAttributeSymbol)).FirstOrDefault();
+        var restrictChildrenAttribute = type.GetAttributes().Where(a => EqualByName(a.AttributeClass, TagHelperTypes.RestrictChildrenAttribute)).FirstOrDefault();
         if (restrictChildrenAttribute == null)
         {
             return;
@@ -178,7 +178,7 @@ internal class DefaultTagHelperDescriptorFactory
     private void AddTagOutputHint(INamedTypeSymbol type, TagHelperDescriptorBuilder builder)
     {
         string outputElementHint = null;
-        var outputElementHintAttribute = type.GetAttributes().Where(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, _outputElementHintAttributeSymbol)).FirstOrDefault();
+        var outputElementHintAttribute = type.GetAttributes().Where(a => EqualByName(a.AttributeClass, TagHelperTypes.OutputElementHintAttribute)).FirstOrDefault();
         if (outputElementHintAttribute != null)
         {
             outputElementHint = (string)(outputElementHintAttribute.ConstructorArguments[0]).Value;
@@ -193,7 +193,7 @@ internal class DefaultTagHelperDescriptorFactory
     {
         var attributeNameAttribute = property
             .GetAttributes()
-            .Where(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, _htmlAttributeNameAttributeSymbol))
+            .Where(a => EqualByName(a.AttributeClass, TagHelperTypes.HtmlAttributeNameAttribute))
             .FirstOrDefault();
 
         bool hasExplicitName;
@@ -314,13 +314,13 @@ internal class DefaultTagHelperDescriptorFactory
     private IReadOnlyList<ITypeSymbol> GetDictionaryArgumentTypes(IPropertySymbol property)
     {
         INamedTypeSymbol dictionaryType;
-        if (SymbolEqualityComparer.Default.Equals((property.Type as INamedTypeSymbol)?.ConstructedFrom, _iDictionarySymbol))
+        if (EqualByName((property.Type as INamedTypeSymbol)?.ConstructedFrom, TagHelperTypes.IDictionary))
         {
             dictionaryType = (INamedTypeSymbol)property.Type;
         }
-        else if (property.Type.AllInterfaces.Any(s => SymbolEqualityComparer.Default.Equals(s.ConstructedFrom, _iDictionarySymbol)))
+        else if (property.Type.AllInterfaces.Any(s => EqualByName(s.ConstructedFrom, TagHelperTypes.IDictionary)))
         {
-            dictionaryType = property.Type.AllInterfaces.First(s => SymbolEqualityComparer.Default.Equals(s.ConstructedFrom, _iDictionarySymbol));
+            dictionaryType = property.Type.AllInterfaces.First(s => EqualByName(s.ConstructedFrom, TagHelperTypes.IDictionary));
         }
         else
         {
@@ -384,7 +384,7 @@ internal class DefaultTagHelperDescriptorFactory
     private bool IsPotentialDictionaryProperty(IPropertySymbol property)
     {
         return
-            (SymbolEqualityComparer.Default.Equals((property.Type as INamedTypeSymbol)?.ConstructedFrom, _iDictionarySymbol) || property.Type.AllInterfaces.Any(s => SymbolEqualityComparer.Default.Equals(s.ConstructedFrom, _iDictionarySymbol))) &&
+            (EqualByName((property.Type as INamedTypeSymbol)?.ConstructedFrom, TagHelperTypes.IDictionary) || property.Type.AllInterfaces.Any(s => EqualByName(s.ConstructedFrom, TagHelperTypes.IDictionary))) &&
             GetDictionaryArgumentTypes(property)?[0].SpecialType == SpecialType.System_String;
     }
 
@@ -401,8 +401,8 @@ internal class DefaultTagHelperDescriptorFactory
                     property.Parameters.Length == 0 &&
                     property.GetMethod != null &&
                     property.GetMethod.DeclaredAccessibility == Accessibility.Public &&
-                    property.GetAttributes().Where(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, _htmlAttributeNotBoundAttributeSymbol)).FirstOrDefault() == null &&
-                    (property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, _htmlAttributeNameAttributeSymbol)) ||
+                    property.GetAttributes().Where(a => EqualByName(a.AttributeClass, TagHelperTypes.HtmlAttributeNotBoundAttribute)).FirstOrDefault() == null &&
+                    (property.GetAttributes().Any(a => EqualByName(a.AttributeClass, TagHelperTypes.HtmlAttributeNameAttribute)) ||
                     property.SetMethod != null && property.SetMethod.DeclaredAccessibility == Accessibility.Public ||
                     IsPotentialDictionaryProperty(property)) &&
                     !accessibleProperties.ContainsKey(property.Name))
@@ -422,7 +422,7 @@ internal class DefaultTagHelperDescriptorFactory
     {
         if (ExcludeHidden)
         {
-            var editorBrowsableAttribute = symbol.GetAttributes().Where(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, _editorBrowsableAttributeSymbol)).FirstOrDefault();
+            var editorBrowsableAttribute = symbol.GetAttributes().Where(a => EqualByName(a.AttributeClass, typeof(EditorBrowsableAttribute).FullName)).FirstOrDefault();
 
             if (editorBrowsableAttribute == null)
             {
@@ -436,6 +436,11 @@ internal class DefaultTagHelperDescriptorFactory
         }
 
         return false;
+    }
+
+    private static bool EqualByName(ITypeSymbol typeSymbol, string name)
+    {
+        return GetFullName(typeSymbol).Equals(name, StringComparison.OrdinalIgnoreCase);
     }
 
     protected static string GetFullName(ITypeSymbol type) => type.ToDisplayString(FullNameTypeDisplayFormat);
