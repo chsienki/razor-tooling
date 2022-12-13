@@ -66,6 +66,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
             var generatedDeclarationCode = componentFiles
                 .Combine(importFiles.Collect())
                 .Combine(razorSourceGeneratorOptions)
+                .WithLambdaComparer((old, @new) => (old.Right.Equals(@new.Right) && old.Left.Left.Equals(@new.Left.Left) && old.Left.Right.SequenceEqual(@new.Left.Right)), (a) => a.GetHashCode())
                 .Select(static (pair, _) =>
                 {
 
@@ -221,6 +222,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
 
             var initialProcess = sourceItems
                 .Combine(importFiles.Collect())
+                .WithLambdaComparer((old, @new) => old.Left.Equals(@new.Left) && old.Right.SequenceEqual(@new.Right), (a) => GetHashCode())
                 .Combine(razorSourceGeneratorOptions)
                 .Select(static (pair, _) =>
                 {
@@ -246,7 +248,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 .Select((pair, _) =>
                 {
                     var ((projectEngine, hintName, codeDocument, tagHelperFeature), allTagHelpers) = pair;
-
+                    //TODO: why is this getting called during remove operations?
                     tagHelperFeature.TagHelpers = allTagHelpers;
                     codeDocument = projectEngine.ProcessTagHelpers(codeDocument, allTagHelpers, false);
                     return (projectEngine, hintName, codeDocument);

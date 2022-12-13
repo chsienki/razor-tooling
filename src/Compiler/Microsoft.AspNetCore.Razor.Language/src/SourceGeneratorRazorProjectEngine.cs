@@ -67,27 +67,41 @@ internal class SourceGeneratorRazorProjectEngine : DefaultRazorProjectEngine
                 //      consider: I remove a tag helper that wasn't in context, and add one that now is. If we look at all the used tag helpers, then we'd incorrectly say we can short circuit,
                 //      even though the added one might actually be in the document. So we have to check the scopes first, annoyingly. (I think? write a test to prove this).
 
-                // as long as no tag helpers were removed or added, we can check the tagHelpers we used last time, to see if the one that was modified was actually used
-                if (oldContextHelpers.Count == newContextHelpers.Count)
+                // In the case of a tag helper removal, we can still check if it was used or not. However we have to consider the case where one tag helper is added and two are removed
+                // We need to know that one was added and thus have to do a full re-parse. In other words we can only short circuit when we're sure no tag helpers were added.
+
+                HashSet<TagHelperDescriptor> originalTagHelpers = new HashSet<TagHelperDescriptor>(inputTagHelpers);
+                bool foundDiff = false;
+
+                foreach (var newTagHelper in tagHelpers)
                 {
-                    bool foundDiff = false;
+                    if (!originalTagHelpers.Contains(newTagHelper))
+                    {
+                        // we found a new tag helper, we have to re-parse
+                        foundDiff = true;
+                        break;
+                    }
+                }
+
+                if (!foundDiff)
+                {
                     var newContextSet = new HashSet<TagHelperDescriptor>(newContextHelpers);
                     foreach (var usedHelper in codeDocument.GetReferencedTagHelpers())
                     {
-                        if (newContextSet.Add(usedHelper))
+                        if (!newContextSet.Contains(usedHelper))
                         {
                             // the new set doesn't contain a helper we used last time, we need to re-parse
                             foundDiff = true;
                             break;
                         }
                     }
-
-                    if (!foundDiff)
-                    {
-                        return codeDocument;
-                    }
-
                 }
+
+                if (!foundDiff)
+                {
+                    return codeDocument;
+                }
+
 
                 // Need to do a full re-write, but can skip the scoping check as we just did it
                 startIndex = 3;
