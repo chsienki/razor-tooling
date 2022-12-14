@@ -110,7 +110,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     var ((generatedDeclarationSyntaxTree, compilation), razorSourceGeneratorOptions) = pair;
 
                     var tagHelperFeature = new StaticCompilationTagHelperFeature();
-                    var discoveryProjectEngine = GetDiscoveryProjectEngine(compilation.References.ToImmutableArray(), tagHelperFeature, true);
+                    var discoveryProjectEngine = GetDiscoveryProjectEngine(compilation.References.ToImmutableArray(), tagHelperFeature);
 
                     var compilationWithDeclarations = compilation.AddSyntaxTrees(generatedDeclarationSyntaxTree);
 
@@ -134,7 +134,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 var (compilation, razorSourceGeneratorOptions) = pair;
 
                 var tagHelperFeature = new StaticCompilationTagHelperFeature();
-                var discoveryProjectEngine = GetDiscoveryProjectEngine(compilation.References.ToImmutableArray(), tagHelperFeature, true);
+                var discoveryProjectEngine = GetDiscoveryProjectEngine(compilation.References.ToImmutableArray(), tagHelperFeature);
 
                 tagHelperFeature.Compilation = compilation;
                 tagHelperFeature.TargetAssembly = compilation.Assembly;
@@ -183,7 +183,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     }
 
                     var tagHelperFeature = new StaticCompilationTagHelperFeature();
-                    var discoveryProjectEngine = GetDiscoveryProjectEngine(compilation.References.ToImmutableArray(), tagHelperFeature, true);
+                    var discoveryProjectEngine = GetDiscoveryProjectEngine(compilation.References.ToImmutableArray(), tagHelperFeature);
 
                     List<TagHelperDescriptor> descriptors = new();
                     tagHelperFeature.Compilation = compilation;
