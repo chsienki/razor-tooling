@@ -2460,13 +2460,6 @@ namespace MyApp.Pages
                 .VerifyOutputsMatch(result);
         }
 
-        [Fact] // https://github.com/dotnet/razor/issues/7914
-        public async Task SourceGenerator_UppercaseRazor_GeneratesComponent()
-        {
-            var project = CreateTestProject(new()
-            {
-                ["Component.Razor"] = "<h1>Hello world</h1>",
-            });
         [Fact]
         public void Check_Compilation_Impact()
         {
@@ -2737,6 +2730,14 @@ namespace MyApp.Pages
             //    return (descriptors, projectItem);
             //}
         }
+
+        [Fact] // https://github.com/dotnet/razor/issues/7914
+        public async Task SourceGenerator_UppercaseRazor_GeneratesComponent()
+        {
+            var project = CreateTestProject(new()
+            {
+                ["Component.Razor"] = "<h1>Hello world</h1>",
+            });
 
             var compilation = await project.GetCompilationAsync();
             var driver = await GetDriverAsync(project);
