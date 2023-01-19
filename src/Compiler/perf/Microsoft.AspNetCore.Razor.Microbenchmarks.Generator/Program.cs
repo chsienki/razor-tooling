@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using BenchmarkDotNet.Configs;
@@ -18,7 +18,7 @@ baseJob = baseJob
 #endif
 
 var config = ManualConfig.CreateMinimumViable()
-            .AddJob(baseJob.WithCustomBuildConfiguration("Release").WithId("Current"))
+            //.AddJob(baseJob.WithCustomBuildConfiguration("Release").WithId("Current"))
             .AddJob(baseJob.WithCustomBuildConfiguration("Release_Nuget").WithId("Baseline").WithBaseline(true))
             .StopOnFirstError(true)
             .AddExporter(CsvExporter.Default)

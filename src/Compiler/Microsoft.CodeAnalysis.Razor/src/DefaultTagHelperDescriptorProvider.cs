@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 #nullable disable
@@ -27,15 +27,15 @@ public sealed class DefaultTagHelperDescriptorProvider : RazorEngineFeatureBase,
             return;
         }
 
-        var iTagHelper = compilation.GetTypeByMetadataName(TagHelperTypes.ITagHelper);
-        if (iTagHelper == null || iTagHelper.TypeKind == TypeKind.Error)
+        var wellKnownSymbols = context.GetWellKnownSymbols() ?? new WellKnownSymbols(compilation);
+        if (wellKnownSymbols.ITagHelper is null or { TypeKind: TypeKind.Error})
         {
             // Could not find attributes we care about in the compilation. Nothing to do.
             return;
-        }
+        }    
 
         var types = new List<INamedTypeSymbol>();
-        var visitor = new TagHelperTypeVisitor(iTagHelper, types);
+        var visitor = new TagHelperTypeVisitor(wellKnownSymbols.ITagHelper, types);
 
         var targetSymbol = context.Items.GetTargetSymbol();
         if (targetSymbol is not null)
@@ -58,7 +58,7 @@ public sealed class DefaultTagHelperDescriptorProvider : RazorEngineFeatureBase,
         }
 
 
-        var factory = new DefaultTagHelperDescriptorFactory(compilation, context.IncludeDocumentation, context.ExcludeHidden);
+        var factory = new DefaultTagHelperDescriptorFactory(wellKnownSymbols, context.IncludeDocumentation, context.ExcludeHidden);
         for (var i = 0; i < types.Count; i++)
         {
             var descriptor = factory.CreateDescriptor(types[i]);

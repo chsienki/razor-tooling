@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 #nullable disable
@@ -28,5 +28,25 @@ public static class TagHelperDescriptorProviderContextExtensions
         }
 
         context.Items[typeof(Compilation)] = compilation;
+    }
+
+    internal static WellKnownSymbols GetWellKnownSymbols(this TagHelperDescriptorProviderContext context)
+    {
+        if (context == null)
+        {
+            throw new ArgumentNullException(nameof(context));
+        }
+
+        return (WellKnownSymbols)context.Items[typeof(WellKnownSymbols)];
+    }
+
+    internal static void SetWellKnownSymbols(this TagHelperDescriptorProviderContext context, WellKnownSymbols requiredSymbols)
+    {
+        if (context == null)
+        {
+            throw new ArgumentNullException(nameof(context));
+        }
+
+        context.Items[typeof(WellKnownSymbols)] = requiredSymbols;
     }
 }
