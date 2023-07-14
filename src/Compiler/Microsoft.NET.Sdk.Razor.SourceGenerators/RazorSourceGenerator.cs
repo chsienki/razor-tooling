@@ -94,39 +94,87 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     return CSharpSyntaxTree.ParseText(generatedDeclarationCode, (CSharpParseOptions)parseOptions, filePath, cancellationToken: ct);
                 });
 
+            //var tagHelpersFromComponents = generatedDeclarationSyntaxTrees
+            //    .Combine(compilation)
+            //    .Combine(razorSourceGeneratorOptions)
+            //    .SelectMany(static (pair, ct) =>
+            //    {
+
+            //        var ((generatedDeclarationSyntaxTree, compilation), razorSourceGeneratorOptions) = pair;
+            //        RazorSourceGeneratorEventSource.Log.DiscoverTagHelpersFromComponentStart(generatedDeclarationSyntaxTree.FilePath);
+
+            //        var tagHelperFeature = new StaticCompilationTagHelperFeature();
+            //        var discoveryProjectEngine = GetDiscoveryProjectEngine(compilation.References.ToImmutableArray(), tagHelperFeature);
+
+            //        var compilationWithDeclarations = compilation.AddSyntaxTrees(generatedDeclarationSyntaxTree);
+
+            //        // try and find the specific root class this component is declaring, falling back to the assembly if for any reason the code is not in the shape we expect
+            //        ISymbol targetSymbol = compilationWithDeclarations.Assembly;
+            //        var root = generatedDeclarationSyntaxTree.GetRoot(ct);
+            //        if (root is CompilationUnitSyntax { Members: [NamespaceDeclarationSyntax { Members: [ClassDeclarationSyntax classSyntax, ..] }, ..] })
+            //        {
+            //            var declaredClass = compilationWithDeclarations.GetSemanticModel(generatedDeclarationSyntaxTree).GetDeclaredSymbol(classSyntax, ct);
+            //            //Debug.Assert(declaredClass is null || declaredClass is { AllInterfaces: [{ Name: "IComponent" }, ..] });
+            //            targetSymbol = declaredClass ?? targetSymbol;
+            //        }
+
+            //        tagHelperFeature.Compilation = compilationWithDeclarations;
+            //        tagHelperFeature.TargetSymbol = targetSymbol;
+
+            //        var result = tagHelperFeature.GetDescriptors();
+            //        RazorSourceGeneratorEventSource.Log.DiscoverTagHelpersFromComponentStop(generatedDeclarationSyntaxTree.FilePath);
+            //        return result;
+            //    });
+
             var tagHelpersFromComponents = generatedDeclarationSyntaxTrees
+                .Collect()
                 .Combine(compilation)
                 .Combine(razorSourceGeneratorOptions)
                 .SelectMany(static (pair, ct) =>
                 {
 
-                    var ((generatedDeclarationSyntaxTree, compilation), razorSourceGeneratorOptions) = pair;
-                    RazorSourceGeneratorEventSource.Log.DiscoverTagHelpersFromComponentStart(generatedDeclarationSyntaxTree.FilePath);
+                    //var ((generatedDeclarationSyntaxTree, compilation), razorSourceGeneratorOptions) = pair;
+                    ////RazorSourceGeneratorEventSource.Log.DiscoverTagHelpersFromComponentStart(generatedDeclarationSyntaxTree.FilePath);
 
-                    var tagHelperFeature = new StaticCompilationTagHelperFeature();
-                    var discoveryProjectEngine = GetDiscoveryProjectEngine(compilation.References.ToImmutableArray(), tagHelperFeature);
+                    //var tagHelperFeature = new StaticCompilationTagHelperFeature();
+                    //var discoveryProjectEngine = GetDiscoveryProjectEngine(compilation.References.ToImmutableArray(), tagHelperFeature);
 
-                    var compilationWithDeclarations = compilation.AddSyntaxTrees(generatedDeclarationSyntaxTree);
+                    //var compilationWithDeclarations = compilation.AddSyntaxTrees(generatedDeclarationSyntaxTree);
 
-                    // try and find the specific root class this component is declaring, falling back to the assembly if for any reason the code is not in the shape we expect
-                    ISymbol targetSymbol = compilationWithDeclarations.Assembly;
-                    var root = generatedDeclarationSyntaxTree.GetRoot(ct);
-                    if (root is CompilationUnitSyntax { Members: [NamespaceDeclarationSyntax { Members: [ClassDeclarationSyntax classSyntax, ..] }, ..] })
-                    {
-                        var declaredClass = compilationWithDeclarations.GetSemanticModel(generatedDeclarationSyntaxTree).GetDeclaredSymbol(classSyntax, ct);
-                        Debug.Assert(declaredClass is null || declaredClass is { AllInterfaces: [{ Name: "IComponent" }, ..] });
-                        targetSymbol = declaredClass ?? targetSymbol;
-                    }
+                    //using var pool = ArrayBuilderPool<TagHelperDescriptor>.GetPooledObject(out var tagHelpers);
+                    //foreach (var tree in generatedDeclarationSyntaxTree)
+                    //{
+                    //    //TODO: can we split out this loop to only process changed trees? Would that even work?
 
-                    tagHelperFeature.Compilation = compilationWithDeclarations;
-                    tagHelperFeature.TargetSymbol = targetSymbol;
 
-                    var result = tagHelperFeature.GetDescriptors();
-                    RazorSourceGeneratorEventSource.Log.DiscoverTagHelpersFromComponentStop(generatedDeclarationSyntaxTree.FilePath);
-                    return result;
+                    //    // try and find the specific root class this component is declaring, falling back to the assembly if for any reason the code is not in the shape we expect
+                    //    ISymbol targetSymbol = compilationWithDeclarations.Assembly;
+                    //    var root = tree.GetRoot(ct);
+                    //    if (root is CompilationUnitSyntax { Members: [NamespaceDeclarationSyntax { Members: [ClassDeclarationSyntax classSyntax, ..] }, ..] })
+                    //    {
+                    //        var declaredClass = compilationWithDeclarations.GetSemanticModel(tree).GetDeclaredSymbol(classSyntax, ct);
+                    //        //Debug.Assert(declaredClass is null || declaredClass is { AllInterfaces: [{ Name: "IComponent" }, ..] });
+                    //        targetSymbol = declaredClass ?? targetSymbol;
+                    //    }
+
+                    //    tagHelperFeature.Compilation = compilationWithDeclarations;
+                    //    tagHelperFeature.TargetSymbol = targetSymbol;
+
+                    //    tagHelpers.AddRange(tagHelperFeature.GetDescriptors());
+                    //}
+                    ////RazorSourceGeneratorEventSource.Log.DiscoverTagHelpersFromComponentStop(generatedDeclarationSyntaxTree.FilePath);
+                    return ImmutableArray<TagHelperDescriptor>.Empty; // PROTO: turn this off for now, only get them from 'compilation'
                 });
 
-            var tagHelpersFromCompilation = compilation
+            var declCompilation = generatedDeclarationSyntaxTrees
+                .Collect()
+                .Combine(compilation)
+                .Select((pair, _) =>
+                {
+                    return pair.Right.AddSyntaxTrees(pair.Left);
+                });
+
+            var tagHelpersFromCompilation = declCompilation
                 .Combine(razorSourceGeneratorOptions)
                 .Select(static (pair, _) =>
                 {
@@ -214,7 +262,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     }
 
                     using var pool = ArrayBuilderPool<TagHelperDescriptor>.GetPooledObject(out var allTagHelpers);
-					allTagHelpers.AddRange(tagHelpersFromCompilation);
+                    allTagHelpers.AddRange(tagHelpersFromCompilation);
                     allTagHelpers.AddRange(tagHelpersFromReferences);
                     allTagHelpers.AddRange(tagHelpersFromComponents);
 
