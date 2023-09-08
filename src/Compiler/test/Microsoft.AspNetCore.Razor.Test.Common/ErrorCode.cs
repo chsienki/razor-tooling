@@ -12,6 +12,7 @@ public enum ErrorCode
     ERR_ObjectRequired = 120,
     ERR_SingleTypeNameNotFound = 246,
     WRN_UnreferencedFieldAssg = 414,
+    ERR_BadArgType = 1503,
     WRN_AsyncLacksAwaits = 1998,
     WRN_UninitializedNonNullableField = 8618,
 }
