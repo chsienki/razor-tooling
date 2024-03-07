@@ -891,7 +891,7 @@ public partial class SemanticTokensTest(ITestOutputHelper testOutput) : TagHelpe
         {
             // Note that the expected lengths are different on Windows vs. Unix.
             var expectedCsharpRangeLength = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? 970 : 938;
-            Assert.True(RazorSemanticTokensInfoService.TryGetMinimalCSharpRange(codeDocument, razorRange, out var csharpRange));
+            Assert.True(codeDocument.TryGetMinimalCSharpRange(razorRange, out var csharpRange));
             var textSpan = csharpRange.ToTextSpan(csharpSourceText);
             Assert.Equal(expectedCsharpRangeLength, textSpan.Length);
         }
@@ -1008,10 +1008,11 @@ public partial class SemanticTokensTest(ITestOutputHelper testOutput) : TagHelpe
 
         var service = new RazorSemanticTokensInfoService(
             documentMappingService,
+            TestRazorSemanticTokensLegendService.Instance,
             featureOptions,
             LoggerFactory,
             telemetryReporter: null);
-        service.ApplyCapabilities(new(), new VSInternalClientCapabilities { SupportsVisualStudioExtensions = true });
+
         return service;
     }
 
@@ -1137,7 +1138,7 @@ public partial class SemanticTokensTest(ITestOutputHelper testOutput) : TagHelpe
         }
 
         if (!documentMappingService.TryMapToGeneratedDocumentRange(codeDocument.GetCSharpDocument(), razorRange, out var range) &&
-            !RazorSemanticTokensInfoService.TryGetMinimalCSharpRange(codeDocument, razorRange, out range))
+            !codeDocument.TryGetMinimalCSharpRange(razorRange, out range))
         {
             // No C# in the range.
             return null;
@@ -1175,7 +1176,7 @@ public partial class SemanticTokensTest(ITestOutputHelper testOutput) : TagHelpe
 
         using var _ = StringBuilderPool.GetPooledObject(out var builder);
         builder.AppendLine("//line,characterPos,length,tokenType,modifier,text");
-        var legendArray = TestRazorSemanticTokensLegend.Instance.Legend.TokenTypes;
+        var legendArray = TestRazorSemanticTokensLegendService.Instance.Legend.TokenTypes;
         var prevLength = 0;
         var lineIndex = 0;
         var lineOffset = 0;

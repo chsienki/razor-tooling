@@ -1,6 +1,6 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
-
+#define GENERATE_BASELINES
 #nullable disable
 
 using System.Linq;
@@ -20,10 +20,7 @@ public class CodeGenerationIntegrationTest : IntegrationTestBase
     public CodeGenerationIntegrationTest()
         : base(layer: TestProject.Layer.Compiler, generateBaselines: null, projectDirectoryHint: "Microsoft.AspNetCore.Mvc.Razor.Extensions.Version2_X")
     {
-        Configuration = RazorConfiguration.Create(
-            RazorLanguageVersion.Version_2_0,
-            "MVC-2.1",
-            new[] { new AssemblyExtension("MVC-2.1", typeof(ExtensionInitializer).Assembly) });
+        Configuration = new(RazorLanguageVersion.Version_2_0, "MVC-2.1", Extensions: []);
     }
 
     protected override CSharpCompilation BaseCompilation => DefaultBaseCompilation;

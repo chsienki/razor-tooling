@@ -70,14 +70,15 @@ public class RazorSemanticTokensRangeEndpointBenchmark : RazorLanguageServerBenc
         TargetPath = "/Components/Pages/SemanticTokens.razor";
 
         var documentUri = new Uri(filePath);
-        var documentSnapshot = GetDocumentSnapshot(ProjectFilePath, filePath, TargetPath);
+        var documentSnapshot = await GetDocumentSnapshotAsync(ProjectFilePath, filePath, TargetPath);
         var version = 1;
         DocumentContext = new VersionedDocumentContext(documentUri, documentSnapshot, projectContext: null, version);
 
         var razorOptionsMonitor = RazorLanguageServer.GetRequiredService<RazorLSPOptionsMonitor>();
         var clientConnection = RazorLanguageServer.GetRequiredService<IClientConnection>();
-        SemanticTokensRangeEndpoint = new SemanticTokensRangeEndpoint(RazorSemanticTokenService, razorOptionsMonitor, clientConnection);
-        SemanticTokensRangeEndpoint.ApplyCapabilities(new(), new VSInternalClientCapabilities() { SupportsVisualStudioExtensions = true });
+        var clientCapabilitiesService = new BenchmarkClientCapabilitiesService(new VSInternalClientCapabilities() { SupportsVisualStudioExtensions = true });
+        var razorSemanticTokensLegendService = new RazorSemanticTokensLegendService(clientCapabilitiesService);
+        SemanticTokensRangeEndpoint = new SemanticTokensRangeEndpoint(RazorSemanticTokenService, razorSemanticTokensLegendService, razorOptionsMonitor, clientConnection);
 
         var text = await DocumentContext.GetSourceTextAsync(CancellationToken.None).ConfigureAwait(false);
         Range = new Range
@@ -124,7 +125,7 @@ public class RazorSemanticTokensRangeEndpointBenchmark : RazorLanguageServerBenc
     private async Task UpdateDocumentAsync(int newVersion, IDocumentSnapshot documentSnapshot,
         CancellationToken cancellationToken)
     {
-        await ProjectSnapshotManagerDispatcher.RunOnDispatcherThreadAsync(
+        await ProjectSnapshotManagerDispatcher.RunAsync(
                 () => VersionCache.TrackDocumentVersion(documentSnapshot, newVersion), cancellationToken)
             .ConfigureAwait(false);
     }
@@ -155,8 +156,9 @@ public class RazorSemanticTokensRangeEndpointBenchmark : RazorLanguageServerBenc
         public TestCustomizableRazorSemanticTokensInfoService(
             LanguageServerFeatureOptions languageServerFeatureOptions,
             IRazorDocumentMappingService documentMappingService,
+            RazorSemanticTokensLegendService razorSemanticTokensLegendService,
             IRazorLoggerFactory loggerFactory)
-            : base(documentMappingService, languageServerFeatureOptions, loggerFactory, telemetryReporter: null)
+            : base(documentMappingService, razorSemanticTokensLegendService, languageServerFeatureOptions, loggerFactory, telemetryReporter: null)
         {
         }
 
@@ -166,7 +168,6 @@ public class RazorSemanticTokensRangeEndpointBenchmark : RazorLanguageServerBenc
             RazorCodeDocument codeDocument,
             TextDocumentIdentifier textDocumentIdentifier,
             Range razorRange,
-            RazorSemanticTokensLegend razorSemanticTokensLegend,
             bool colorBackground,
             long documentVersion,
             Guid correlationId,

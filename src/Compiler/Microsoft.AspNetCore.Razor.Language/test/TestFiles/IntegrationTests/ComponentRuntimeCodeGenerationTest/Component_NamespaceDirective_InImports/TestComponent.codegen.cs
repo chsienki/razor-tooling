@@ -9,7 +9,7 @@ New.Test
 #line hidden
 #nullable disable
 {
-    #line hidden
+    #line default
     using global::System;
     using global::System.Collections.Generic;
     using global::System.Linq;
@@ -19,8 +19,6 @@ New.Test
 #line (1,2)-(2,1) "x:\dir\subdir\Test\_Imports.razor"
 using System.Text
 
-#line default
-#line hidden
 #nullable disable
     ;
 #nullable restore

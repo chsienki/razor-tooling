@@ -9,7 +9,7 @@ AnotherTest
 #line hidden
 #nullable disable
 {
-    #line hidden
+    #line default
     using global::System;
     using global::System.Collections.Generic;
     using global::System.Linq;

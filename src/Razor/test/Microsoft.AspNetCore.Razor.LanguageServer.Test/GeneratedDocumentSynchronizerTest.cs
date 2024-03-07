@@ -35,7 +35,7 @@ public class GeneratedDocumentSynchronizerTest : LanguageServerTestBase
         // Arrange
 
         // Act
-        await Dispatcher.RunOnDispatcherThreadAsync(
+        await Dispatcher.RunAsync(
             () => _synchronizer.DocumentProcessed(_codeDocument, _document), DisposalToken);
 
         // Assert
@@ -47,7 +47,7 @@ public class GeneratedDocumentSynchronizerTest : LanguageServerTestBase
     public async Task DocumentProcessed_KnownVersion_Publishes()
     {
         // Arrange
-        await Dispatcher.RunOnDispatcherThreadAsync(() =>
+        await Dispatcher.RunAsync(() =>
         {
             _cache.TrackDocumentVersion(_document, version: 1337);
 
@@ -60,22 +60,18 @@ public class GeneratedDocumentSynchronizerTest : LanguageServerTestBase
         Assert.True(_publisher.PublishedHtml);
     }
 
-    private class TestGeneratedDocumentPublisher : GeneratedDocumentPublisher
+    private class TestGeneratedDocumentPublisher : IGeneratedDocumentPublisher
     {
-        public override void Initialize(ProjectSnapshotManagerBase projectManager)
-        {
-        }
-
         public bool PublishedCSharp { get; private set; }
 
         public bool PublishedHtml { get; private set; }
 
-        public override void PublishCSharp(ProjectKey projectKey, string filePath, SourceText sourceText, int hostDocumentVersion)
+        public void PublishCSharp(ProjectKey projectKey, string filePath, SourceText sourceText, int hostDocumentVersion)
         {
             PublishedCSharp = true;
         }
 
-        public override void PublishHtml(ProjectKey projectKey, string filePath, SourceText sourceText, int hostDocumentVersion)
+        public void PublishHtml(ProjectKey projectKey, string filePath, SourceText sourceText, int hostDocumentVersion)
         {
             PublishedHtml = true;
         }

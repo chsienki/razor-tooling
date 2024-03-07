@@ -4,7 +4,6 @@
 #nullable disable
 
 using System;
-using System.Collections.Immutable;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Razor.Language;
@@ -43,11 +42,11 @@ public class OpenDocumentGeneratorTest : LanguageServerTestBase
     public async Task DocumentAdded_IgnoresClosedDocument()
     {
         // Arrange
-        var projectManager = TestProjectSnapshotManager.Create(ErrorReporter, Dispatcher);
+        var projectManager = TestProjectSnapshotManager.Create(Dispatcher, ErrorReporter);
         var listener = new TestDocumentProcessedListener();
         var queue = new TestOpenDocumentGenerator(Dispatcher, ErrorReporter, listener);
 
-        await Dispatcher.RunOnDispatcherThreadAsync(() =>
+        await Dispatcher.RunAsync(() =>
         {
             projectManager.ProjectAdded(_hostProject1);
             projectManager.ProjectAdded(_hostProject2);
@@ -67,11 +66,11 @@ public class OpenDocumentGeneratorTest : LanguageServerTestBase
     public async Task DocumentChanged_IgnoresClosedDocument()
     {
         // Arrange
-        var projectManager = TestProjectSnapshotManager.Create(ErrorReporter, Dispatcher);
+        var projectManager = TestProjectSnapshotManager.Create(Dispatcher, ErrorReporter);
         var listener = new TestDocumentProcessedListener();
         var queue = new TestOpenDocumentGenerator(Dispatcher, ErrorReporter, listener);
 
-        await Dispatcher.RunOnDispatcherThreadAsync(() =>
+        await Dispatcher.RunAsync(() =>
         {
             projectManager.ProjectAdded(_hostProject1);
             projectManager.ProjectAdded(_hostProject2);
@@ -92,11 +91,11 @@ public class OpenDocumentGeneratorTest : LanguageServerTestBase
     public async Task DocumentChanged_ProcessesOpenDocument()
     {
         // Arrange
-        var projectManager = TestProjectSnapshotManager.Create(ErrorReporter, Dispatcher);
+        var projectManager = TestProjectSnapshotManager.Create(Dispatcher, ErrorReporter);
         var listener = new TestDocumentProcessedListener();
         var queue = new TestOpenDocumentGenerator(Dispatcher, ErrorReporter, listener);
 
-        await Dispatcher.RunOnDispatcherThreadAsync(() =>
+        await Dispatcher.RunAsync(() =>
         {
             projectManager.ProjectAdded(_hostProject1);
             projectManager.ProjectAdded(_hostProject2);
@@ -120,11 +119,11 @@ public class OpenDocumentGeneratorTest : LanguageServerTestBase
     public async Task ProjectChanged_IgnoresClosedDocument()
     {
         // Arrange
-        var projectManager = TestProjectSnapshotManager.Create(ErrorReporter, Dispatcher);
+        var projectManager = TestProjectSnapshotManager.Create(Dispatcher, ErrorReporter);
         var listener = new TestDocumentProcessedListener();
         var queue = new TestOpenDocumentGenerator(Dispatcher, ErrorReporter, listener);
 
-        await Dispatcher.RunOnDispatcherThreadAsync(() =>
+        await Dispatcher.RunAsync(() =>
         {
             projectManager.ProjectAdded(_hostProject1);
             projectManager.ProjectAdded(_hostProject2);
@@ -146,11 +145,11 @@ public class OpenDocumentGeneratorTest : LanguageServerTestBase
     public async Task ProjectChanged_ProcessesOpenDocument()
     {
         // Arrange
-        var projectManager = TestProjectSnapshotManager.Create(ErrorReporter, Dispatcher);
+        var projectManager = TestProjectSnapshotManager.Create(Dispatcher, ErrorReporter);
         var listener = new TestDocumentProcessedListener();
         var queue = new TestOpenDocumentGenerator(Dispatcher, ErrorReporter, listener);
 
-        await Dispatcher.RunOnDispatcherThreadAsync(() =>
+        await Dispatcher.RunAsync(() =>
         {
             projectManager.ProjectAdded(_hostProject1);
             projectManager.ProjectAdded(_hostProject2);
@@ -211,7 +210,7 @@ public class OpenDocumentGeneratorTest : LanguageServerTestBase
             _tcs.SetResult(document);
         }
 
-        public override void Initialize(ProjectSnapshotManager projectManager)
+        public override void Initialize(IProjectSnapshotManager projectManager)
         {
         }
     }

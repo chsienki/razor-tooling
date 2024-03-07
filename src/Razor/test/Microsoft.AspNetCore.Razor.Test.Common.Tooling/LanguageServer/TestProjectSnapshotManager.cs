@@ -1,38 +1,27 @@
 ﻿// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the MIT license. See License.txt in the project root for license information.
 
-using System;
-using System.Linq;
 using Microsoft.AspNetCore.Razor.LanguageServer;
-using Microsoft.AspNetCore.Razor.LanguageServer.Common;
-using Microsoft.AspNetCore.Razor.Test.Common.Workspaces;
+using Microsoft.AspNetCore.Razor.ProjectEngineHost;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Host;
 using Microsoft.CodeAnalysis.Razor;
 using Microsoft.CodeAnalysis.Razor.ProjectSystem;
+using Microsoft.CodeAnalysis.Razor.Workspaces;
 
 namespace Microsoft.AspNetCore.Razor.Test.Common.LanguageServer;
 
 internal class TestProjectSnapshotManager : DefaultProjectSnapshotManager
 {
-    private TestProjectSnapshotManager(IErrorReporter errorReporter, Workspace workspace, ProjectSnapshotManagerDispatcher dispatcher)
-        : base(errorReporter, Array.Empty<IProjectSnapshotChangeTrigger>(), workspace, dispatcher)
+    private TestProjectSnapshotManager(
+        IProjectEngineFactoryProvider projectEngineFactoryProvider,
+        ProjectSnapshotManagerDispatcher dispatcher,
+        IErrorReporter errorReporter)
+        : base(triggers: [], projectEngineFactoryProvider, dispatcher, errorReporter)
     {
     }
 
-    public static TestProjectSnapshotManager Create(IErrorReporter errorReporter, ProjectSnapshotManagerDispatcher dispatcher)
-    {
-        var services = TestServices.Create(
-            workspaceServices: new[]
-            {
-                new DefaultProjectSnapshotProjectEngineFactory(new FallbackProjectEngineFactory(), MefProjectEngineFactories.Factories)
-            },
-            razorLanguageServices: Enumerable.Empty<ILanguageService>());
-        var workspace = TestWorkspace.Create(services);
-        var testProjectManager = new TestProjectSnapshotManager(errorReporter, workspace, dispatcher);
-
-        return testProjectManager;
-    }
+    public static TestProjectSnapshotManager Create(ProjectSnapshotManagerDispatcher dispatcher, IErrorReporter errorReporter)
+        => new TestProjectSnapshotManager(ProjectEngineFactories.DefaultProvider, dispatcher, errorReporter);
 
     public bool AllowNotifyListeners { get; set; }
 
@@ -58,5 +47,10 @@ internal class TestProjectSnapshotManager : DefaultProjectSnapshotManager
         {
             base.NotifyListeners(e);
         }
+    }
+
+    private sealed class TestWorkspaceProvider(Workspace workspace) : IWorkspaceProvider
+    {
+        public Workspace GetWorkspace() => workspace;
     }
 }
