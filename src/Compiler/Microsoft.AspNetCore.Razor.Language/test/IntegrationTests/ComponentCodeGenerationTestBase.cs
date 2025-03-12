@@ -2374,6 +2374,26 @@ namespace Test
         CompileToAssembly(generated);
     }
 
+    [IntegrationTestFact, WorkItem("https://github.com/dotnet/razor/issues/11551")]
+    public void GenericComponentTypeUsage()
+    {
+        // Act
+        var generated = CompileToCSharp("""
+            @typeparam TItem
+            @code {
+                [Parameter]
+                public TItem MyItem { get; set; }
+            }
+
+            <TestComponent TItem="string" />
+            """);
+
+        // Assert
+        AssertDocumentNodeMatchesBaseline(generated.CodeDocument);
+        AssertCSharpDocumentMatchesBaseline(generated.CodeDocument);
+        CompileToAssembly(generated);
+    }
+
     #endregion
 
     #region Bind
