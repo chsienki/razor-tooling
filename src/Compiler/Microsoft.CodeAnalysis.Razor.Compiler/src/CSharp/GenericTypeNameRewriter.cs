@@ -4,6 +4,7 @@
 #nullable disable
 
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.AspNetCore.Razor.Language;
 using Microsoft.AspNetCore.Razor.Language.Intermediate;
@@ -21,30 +22,27 @@ internal class GenericTypeNameRewriter : TypeNameRewriter
         _bindings = bindings;
     }
 
-    public override string Rewrite(string typeName)
+    public override string Rewrite(string typeName, out ImmutableArray<IntermediateToken> genericParameters)
     {
         var parsed = SyntaxFactory.ParseTypeName(typeName);
-        var rewritten = (TypeSyntax)new Visitor(_bindings).Visit(parsed);
+        var genParams = new List<IntermediateToken>();
+        var rewritten = (TypeSyntax)new Visitor(_bindings, genParams).Visit(parsed);
+        genericParameters = genParams.ToImmutableArray();
         return rewritten.ToFullString();
     }
 
-    private class Visitor : CSharpSyntaxRewriter
+    private class Visitor(Dictionary<string, IntermediateToken> bindings, List<IntermediateToken> genericParams) : CSharpSyntaxRewriter
     {
-        private readonly Dictionary<string, IntermediateToken> _bindings;
-
-        public Visitor(Dictionary<string, IntermediateToken> bindings)
-        {
-            _bindings = bindings;
-        }
-
         public override SyntaxNode Visit(SyntaxNode node)
         {
             // We can handle a single IdentifierNameSyntax at the top level (like 'TItem)
             // OR a GenericNameSyntax recursively (like `List<T>`)
             if (node is IdentifierNameSyntax identifier && !(identifier.Parent is QualifiedNameSyntax))
             {
-                if (_bindings.TryGetValue(identifier.Identifier.Text, out var binding))
+                if (bindings.TryGetValue(identifier.Identifier.Text, out var binding))
                 {
+                    genericParams.Add(binding);
+
                     // If we don't have a valid replacement, use object. This will make the code at least reasonable
                     // compared to leaving the type parameter in place.
                     //

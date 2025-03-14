@@ -77,7 +77,7 @@ public class GenericTypeNameRewriterTest
             });
 
         // Act
-        var actual = visitor.Rewrite(original);
+        var actual = visitor.Rewrite(original, out _);
 
         // Assert
         Assert.Equal(expected, actual.ToString());

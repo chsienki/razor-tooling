@@ -3,11 +3,14 @@
 
 #nullable disable
 
+using System.Collections.Immutable;
+using Microsoft.AspNetCore.Razor.Language.Intermediate;
+
 namespace Microsoft.AspNetCore.Razor.Language;
 
 // Razor.Language doesn't reference Microsoft.CodeAnalysis.CSharp so we
 // need some indirection.
 internal abstract class TypeNameRewriter
 {
-    public abstract string Rewrite(string typeName);
+    public abstract string Rewrite(string typeName, out ImmutableArray<IntermediateToken> genericParameters);
 }

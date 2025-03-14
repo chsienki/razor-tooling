@@ -310,7 +310,7 @@ internal class ComponentGenericTypePass : ComponentIntermediateNodePassBase, IRa
         private void RewriteTypeNames(TypeNameRewriter rewriter, ComponentIntermediateNode node, bool? hasTypeArgumentSpecified = null, IDictionary<string, Binding>? bindings = null)
         {
             // Rewrite the component type name
-            node.TypeName = rewriter.Rewrite(node.TypeName);
+            node.TypeName = rewriter.Rewrite(node.TypeName, out var genericParameters);
 
             foreach (var attribute in node.Attributes)
             {
@@ -320,7 +320,7 @@ internal class ComponentGenericTypePass : ComponentIntermediateNodePassBase, IRa
 
                 if (attribute.TypeName != null)
                 {
-                    globallyQualifiedTypeName = rewriter.Rewrite(globallyQualifiedTypeName ?? attribute.TypeName);
+                    globallyQualifiedTypeName = rewriter.Rewrite(globallyQualifiedTypeName ?? attribute.TypeName, out _);
                     attribute.GloballyQualifiedTypeName = globallyQualifiedTypeName;
                 }
 
@@ -378,7 +378,7 @@ internal class ComponentGenericTypePass : ComponentIntermediateNodePassBase, IRa
             {
                 if (capture.IsComponentCapture && capture.ComponentCaptureTypeName != null)
                 {
-                    capture.ComponentCaptureTypeName = rewriter.Rewrite(capture.ComponentCaptureTypeName);
+                    capture.ComponentCaptureTypeName = rewriter.Rewrite(capture.ComponentCaptureTypeName, out _);
                 }
                 else if (capture.IsComponentCapture)
                 {
@@ -392,7 +392,7 @@ internal class ComponentGenericTypePass : ComponentIntermediateNodePassBase, IRa
                 {
                     // If we know the type name, then replace any generic type parameter inside it with
                     // the known types.
-                    childContent.TypeName = rewriter.Rewrite(childContent.TypeName);
+                    childContent.TypeName = rewriter.Rewrite(childContent.TypeName, out _);
                 }
                 else if (childContent.IsParameterized)
                 {

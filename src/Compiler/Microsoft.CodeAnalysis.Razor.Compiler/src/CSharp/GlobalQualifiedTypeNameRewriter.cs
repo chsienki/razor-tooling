@@ -4,7 +4,9 @@
 #nullable disable
 
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using Microsoft.AspNetCore.Razor.Language;
+using Microsoft.AspNetCore.Razor.Language.Intermediate;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -27,10 +29,11 @@ internal class GlobalQualifiedTypeNameRewriter : TypeNameRewriter
         _ignore = new HashSet<string>(ignore);
     }
 
-    public override string Rewrite(string typeName)
+    public override string Rewrite(string typeName, out ImmutableArray<IntermediateToken> genericParameters)
     {
         var parsed = SyntaxFactory.ParseTypeName(typeName);
         var rewritten = (TypeSyntax)new Visitor(_ignore).Visit(parsed);
+        genericParameters = [];
         return rewritten.ToFullString();
     }
 

@@ -3,7 +3,6 @@
 
 #nullable disable
 
-using System;
 using System.Globalization;
 using System.Linq;
 using Microsoft.AspNetCore.Razor.Language.Components;
