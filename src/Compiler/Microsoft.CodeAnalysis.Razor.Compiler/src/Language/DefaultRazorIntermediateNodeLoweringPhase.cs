@@ -861,7 +861,7 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
             else
             {
                 // this expression doesn't have any children, but we still want to track the empty span it represents
-                expressionNode.Source = node.GetSourceSpan(SourceDocument).GetZeroWidthEndSpan();
+                //expressionNode.Source = node.GetSourceSpan(SourceDocument).GetZeroWidthEndSpan();
             }
         }
 

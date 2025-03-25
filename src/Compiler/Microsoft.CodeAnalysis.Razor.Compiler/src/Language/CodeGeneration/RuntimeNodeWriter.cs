@@ -80,7 +80,7 @@ public class RuntimeNodeWriter : IntermediateNodeWriter
         else
         {
             // this expression doesn't have any children, but we still want to map the empty expression back to the razor document
-            context.CodeWriter.BuildEnhancedLinePragma(node.Source, context).Dispose();
+            //context.CodeWriter.BuildEnhancedLinePragma(node.Source, context).Dispose();
         }
         context.CodeWriter.WriteEndMethodInvocation();
     }

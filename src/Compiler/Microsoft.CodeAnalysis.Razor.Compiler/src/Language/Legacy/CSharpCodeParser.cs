@@ -334,6 +334,7 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
 
                     chunkGenerator = new ExpressionChunkGenerator();
                     SetAcceptedCharacters(AcceptedCharactersInternal.NonWhitespace);
+
                     if (editHandlerBuilder != null)
                     {
                         ImplicitExpressionEditHandler.SetupBuilder(editHandlerBuilder,
@@ -342,7 +343,10 @@ internal class CSharpCodeParser : TokenizerBackedParser<CSharpTokenizer>
                             keywords: CurrentKeywords);
                     }
 
-                    AcceptMarkerTokenIfNecessary();
+                    // In this error case, we always want to accept a marker token. This allows intellisense to know
+                    // that we're still in a CSharp context and offer the correct set of completions to the user.
+                    Accept(Language.CreateMarkerToken());
+
                     var expressionLiteral = SyntaxFactory.CSharpCodeBlock(OutputTokensAsExpressionLiteral());
                     var expressionBody = SyntaxFactory.CSharpImplicitExpressionBody(expressionLiteral);
                     var expressionBlock = SyntaxFactory.CSharpImplicitExpression(transition, expressionBody);
