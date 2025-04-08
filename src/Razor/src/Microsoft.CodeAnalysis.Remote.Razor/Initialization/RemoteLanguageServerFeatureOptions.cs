@@ -3,9 +3,9 @@
 
 using System;
 using System.Composition;
+using Microsoft.AspNetCore.Razor;
 using Microsoft.CodeAnalysis.Razor.Remote;
 using Microsoft.CodeAnalysis.Razor.Workspaces;
-using Microsoft.NET.Sdk.Razor.SourceGenerators;
 
 namespace Microsoft.CodeAnalysis.Remote.Razor;
 
