@@ -333,32 +333,35 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 }
             });
 
-            var hostOutputs = csharpDocuments
-                .Collect()
-                .Combine(allTagHelpers)
-                .Combine(isGeneratorSuppressed)
-                .WithTrackingName("HostOutputs");
+            if (RazorCohostingOptions.UseRazorCohostServer)
+            {
+                var hostOutputs = csharpDocuments
+                    .Collect()
+                    .Combine(allTagHelpers)
+                    .Combine(isGeneratorSuppressed)
+                    .WithTrackingName("HostOutputs");
 
 #pragma warning disable RSEXPERIMENTAL004 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-            context.RegisterHostOutput(hostOutputs, (context, pair) =>
+                context.RegisterHostOutput(hostOutputs, (context, pair) =>
 #pragma warning restore RSEXPERIMENTAL004 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-            {
-                var ((documents, tagHelpers), isGeneratorSuppressed) = pair;
-
-                if (!isGeneratorSuppressed)
                 {
-                    using var filePathToDocument = new PooledDictionaryBuilder<string, (string, RazorCodeDocument)>();
-                    using var hintNameToFilePath = new PooledDictionaryBuilder<string, string>();
+                    var ((documents, tagHelpers), isGeneratorSuppressed) = pair;
 
-                    foreach (var (hintName, codeDocument, _) in documents)
+                    if (!isGeneratorSuppressed)
                     {
-                        filePathToDocument.Add(codeDocument.Source.FilePath!, (hintName, codeDocument));
-                        hintNameToFilePath.Add(hintName, codeDocument.Source.FilePath!);
-                    }
+                        using var filePathToDocument = new PooledDictionaryBuilder<string, (string, RazorCodeDocument)>();
+                        using var hintNameToFilePath = new PooledDictionaryBuilder<string, string>();
 
-                    context.AddOutput(nameof(RazorGeneratorResult), new RazorGeneratorResult(tagHelpers, filePathToDocument.ToImmutable(), hintNameToFilePath.ToImmutable()));
-                }
-            });
+                        foreach (var (hintName, codeDocument, _) in documents)
+                        {
+                            filePathToDocument.Add(codeDocument.Source.FilePath!, (hintName, codeDocument));
+                            hintNameToFilePath.Add(hintName, codeDocument.Source.FilePath!);
+                        }
+
+                        context.AddOutput(nameof(RazorGeneratorResult), new RazorGeneratorResult(tagHelpers, filePathToDocument.ToImmutable(), hintNameToFilePath.ToImmutable()));
+                    }
+                });
+            }
         }
     }
 }
