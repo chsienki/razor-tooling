@@ -40,7 +40,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
             var compilation = context.CompilationProvider;
 
             // We might get initialized before razor tooling has a chance to set this, so check it any time something changes. It's extremely cheap and we'll stop propagating directly below if it didn't changed.
-            var useRazorCohostServer = context.AdditionalTextsProvider.Collect().Combine(context.CompilationProvider).Select((_, _) => RazorCohostingOptions.UseRazorCohostServer);
+            var useRazorCohostServer = context.AdditionalTextsProvider.Collect().Combine(context.CompilationProvider).Select((_, _) => RazorCohostingOptions.UseRazorCohostServerWithFallback);
 
             // determine if we should suppress this run and filter out all the additional files and references if so
             var isGeneratorSuppressed = analyzerConfigOptions.CheckGlobalFlagSet("SuppressRazorSourceGenerator").Combine(useRazorCohostServer).Select((suppress, _) => !suppress.Right && suppress.Left);
