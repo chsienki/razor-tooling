@@ -22,7 +22,8 @@ var config = ManualConfig.CreateMinimumViable()
             .AddJob(baseJob.WithCustomBuildConfiguration("Release_Nuget").WithId("Baseline").WithBaseline(true))
             .StopOnFirstError(true)
             .AddExporter(CsvExporter.Default)
-            .AddDiagnoser(MemoryDiagnoser.Default);
+            .AddDiagnoser(MemoryDiagnoser.Default)
+            .KeepBenchmarkFiles(true);
 
 if (TraceEventSession.IsElevated() == true)
 {

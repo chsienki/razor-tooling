@@ -10,6 +10,34 @@
 
   <Import Project="Sdk.props" Sdk="Microsoft.DotNet.Arcade.Sdk" />
 
+  <PropertyGroup>
+    <!-- Set RoslynTargetFramework based on TargetFramework -->
+    <RoslynTargetFramework>netstandard2.0</RoslynTargetFramework>
+    <RoslynTargetFramework Condition="'$(TargetFramework)' == 'net8.0' or '$(TargetFramework)' == 'net9.0' or '$(TargetFramework)' == 'net10.0'">net8.0</RoslynTargetFramework>
+
+    <RoslynConfiguration>Release</RoslynConfiguration>
+    <RoslynConfiguration Condition="'$(Configuration)' == 'Debug'">Debug</RoslynConfiguration>
+    
+    <!-- ingore warnings -->
+    <NoWarn>$(NoWarn);CS9057;MSB3106</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis\$(RoslynConfiguration)\$(RoslynTargetFramework)\Microsoft.CodeAnalysis.dll"  />
+    <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.CSharp\$(RoslynConfiguration)\$(RoslynTargetFramework)\Microsoft.CodeAnalysis.CSharp.dll" />
+    <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.Features\$(RoslynConfiguration)\$(RoslynTargetFramework)\Microsoft.CodeAnalysis.Features.dll" />
+    <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.ExternalAccess.Razor.Features\$(RoslynConfiguration)\$(RoslynTargetFramework)\Microsoft.CodeAnalysis.ExternalAccess.Razor.Features.dll" />
+    <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.ExternalAccess.Razor.EditorFeatures\$(RoslynConfiguration)\$(RoslynTargetFramework)\Microsoft.CodeAnalysis.ExternalAccess.Razor.EditorFeatures.dll" />
+    <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.CSharp.Workspaces\$(RoslynConfiguration)\$(RoslynTargetFramework)\Microsoft.CodeAnalysis.CSharp.Workspaces.dll" />
+    <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.Workspaces\$(RoslynConfiguration)\$(RoslynTargetFramework)\Microsoft.CodeAnalysis.Workspaces.dll" />
+    <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.EditorFeatures.Text\$(RoslynConfiguration)\$(RoslynTargetFramework)\Microsoft.CodeAnalysis.EditorFeatures.Text.dll" />
+    <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.CSharp.Features\$(RoslynConfiguration)\$(RoslynTargetFramework)\Microsoft.CodeAnalysis.CSharp.Features.dll" />
+    <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.LanguageServer.Protocol\$(RoslynConfiguration)\$(RoslynTargetFramework)\Microsoft.CodeAnalysis.LanguageServer.Protocol.dll" />
+    <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.CSharp.CodeStyle.Fixes\$(RoslynConfiguration)\netstandard2.0\Microsoft.Bcl.AsyncInterfaces.dll" />
+    <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.CSharp.Workspaces.UnitTests\$(RoslynConfiguration)\net472\Microsoft.CodeAnalysis.Elfie.dll" />
+  </ItemGroup>
+
+
   <Import
     Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), AspNetCoreSettings.props))\AspNetCoreSettings.props"
     Condition=" '$(CI)' != 'true' AND '$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), AspNetCoreSettings.props))' != '' " />

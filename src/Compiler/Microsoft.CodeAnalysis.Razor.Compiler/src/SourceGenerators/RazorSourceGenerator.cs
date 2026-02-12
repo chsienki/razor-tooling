@@ -14,9 +14,9 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace Microsoft.NET.Sdk.Razor.SourceGenerators
 {
-#pragma warning disable RS1041 // This compiler extension should not be implemented in an assembly with target framework '.NET 8.0'. References to other target frameworks will cause the compiler to behave unpredictably.
+#pragma warning disable RS1041, RS1038 // This compiler extension should not be implemented in an assembly with target framework '.NET 8.0'. References to other target frameworks will cause the compiler to behave unpredictably.
     [Generator]
-#pragma warning restore RS1041 // This compiler extension should not be implemented in an assembly with target framework '.NET 8.0'. References to other target frameworks will cause the compiler to behave unpredictably.
+#pragma warning restore RS1041, RS1038 // This compiler extension should not be implemented in an assembly with target framework '.NET 8.0'. References to other target frameworks will cause the compiler to behave unpredictably.
     public partial class RazorSourceGenerator : IIncrementalGenerator
     {
         private static RazorSourceGeneratorEventSource Log => RazorSourceGeneratorEventSource.Log;
@@ -342,6 +342,11 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 // Explicitly combine with the suppression state. We *do* want this to run even if we're in the latched state
                 .Combine(isGeneratorSuppressed)
                 .WithTrackingName("DocumentsWithSuppression");
+
+            //context.RegisterPreCompilationOutput(context.ParseOptionsProvider, (spc, parseOptions) =>
+            //{
+            //    spc.AddSource("preCompile.cs", "public class D{}");
+            //});
 
             context.RegisterImplementationSourceOutput(csharpDocumentsWithSuppressionFlag, static (context, pair) =>
             {
