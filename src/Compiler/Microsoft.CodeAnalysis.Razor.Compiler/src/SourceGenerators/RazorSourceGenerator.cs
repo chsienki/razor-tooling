@@ -324,7 +324,8 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     return (
                         hintName: GetIdentifierFromPath(filePath),
                         codeDocument: document.CodeDocument,
-                        csharpDocument: document.CodeDocument.GetRequiredCSharpDocument());
+                        csharpDocument: document.CodeDocument.GetRequiredCSharpDocument(),
+                        csharpDocument2: document.CodeDocument.GetCSharpDocument2());
                 })
                 .WithLambdaComparer(static (a, b) =>
                 {
@@ -350,7 +351,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
 
             context.RegisterImplementationSourceOutput(csharpDocumentsWithSuppressionFlag, static (context, pair) =>
             {
-                var ((hintName, _, csharpDocument), isGeneratorSuppressed) = pair;
+                var ((hintName, _, csharpDocument, csharpDocument2), isGeneratorSuppressed) = pair;
 
                 // When the generator is suppressed, we may still have a lot of cached data for perf, but we don't want to actually add any of the files to the output
                 if (!isGeneratorSuppressed)
@@ -363,6 +364,10 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     }
 
                     context.AddSource(hintName, csharpDocument.Text);
+                    if(csharpDocument2 is not null)
+                    {
+                        context.AddSource(hintName + ".render.g.cs", csharpDocument2.Text);
+                    }
                 }
             });
 
@@ -383,7 +388,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     using var filePathToDocument = new PooledDictionaryBuilder<string, (string, RazorCodeDocument)>();
                     using var hintNameToFilePath = new PooledDictionaryBuilder<string, string>();
 
-                    foreach (var (hintName, codeDocument, _) in documents)
+                    foreach (var (hintName, codeDocument, _, _) in documents)
                     {
                         filePathToDocument.Add(codeDocument.Source.FilePath!, (hintName, codeDocument));
                         hintNameToFilePath.Add(hintName, codeDocument.Source.FilePath!);

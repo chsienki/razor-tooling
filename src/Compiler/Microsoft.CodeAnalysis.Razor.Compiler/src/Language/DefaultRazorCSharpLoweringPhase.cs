@@ -26,15 +26,35 @@ internal class DefaultRazorCSharpLoweringPhase : RazorEnginePhaseBase, IRazorCSh
             throw new InvalidOperationException(message);
         }
 
-        var csharpDocument = WriteDocument(codeDocument, cancellationToken);
-        return codeDocument.WithCSharpDocument(csharpDocument);
+        //PROTOTYPE: we need to only do this for components and when in the non-decl rendering
+        if (codeDocument.FileKind == RazorFileKind.Component && codeDocument.CodeGenerationOptions.SuppressPrimaryMethodBody != true)
+        {
+            // find the render tree method and remove it from the primary class
+            var renderMethod = documentNode.FindPrimaryMethod(); // BuildRenderTree()
+            documentNode.FindPrimaryClass()!.Children.Remove(renderMethod);
+
+            // use that to generate a doc without the render method
+            var doc1 = WriteDocument(documentNode, codeDocument, cancellationToken);
+
+            // now remove everything else from the class, and put back the render method
+            documentNode.FindPrimaryClass()!.Children.Clear();
+            documentNode.FindPrimaryClass()!.Children.Add(renderMethod);
+            var doc2 = WriteDocument(documentNode, codeDocument, cancellationToken);
+
+            return codeDocument.WithCSharpDocument(doc1).WithCSharpDocument2(doc2);
+        }
+        else
+        {
+            var csharpDocument = WriteDocument(documentNode, codeDocument, cancellationToken);
+            return codeDocument.WithCSharpDocument(csharpDocument);
+        }
+
     }
 
-    private static RazorCSharpDocument WriteDocument(RazorCodeDocument codeDocument, CancellationToken cancellationToken = default)
+    private static RazorCSharpDocument WriteDocument(DocumentIntermediateNode documentNode, RazorCodeDocument codeDocument, CancellationToken cancellationToken = default)
     {
         ArgHelper.ThrowIfNull(codeDocument);
 
-        var documentNode = codeDocument.GetRequiredDocumentNode();
         var codeTarget = documentNode.Target;
 
         using var context = new CodeRenderingContext(
