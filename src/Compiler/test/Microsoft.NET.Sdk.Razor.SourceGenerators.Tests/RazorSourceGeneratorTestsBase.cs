@@ -415,6 +415,7 @@ internal static class Extensions
 
     public static GeneratorRunResult VerifyPageOutput(this GeneratorRunResult result, params string[] expectedOutput)
     {
+        Assert.Null(result.Exception);
         if (expectedOutput.Length == 1 && string.IsNullOrWhiteSpace(expectedOutput[0]))
         {
             Assert.Fail(GenerateExpectedPageOutput(result));
