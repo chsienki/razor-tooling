@@ -273,11 +273,11 @@ public sealed partial class RazorCodeDocument
         return new RazorCodeDocument(Source, Imports, ParserOptions, CodeGenerationOptions, _tagHelpers, _referencedTagHelpers, _preTagHelperSyntaxTree, _syntaxTree, _importSyntaxTrees, _tagHelperContext, _documentNode, value, _csharpDocument2);
     }
 
-    internal RazorCSharpDocument? GetCSharpDocument2()
+    internal RazorCSharpDocument? GetDeclCSharpDocument()
     => _csharpDocument2;
 
 
-    internal RazorCodeDocument WithCSharpDocument2(RazorCSharpDocument value)
+    internal RazorCodeDocument WithDeclCSharpDocument(RazorCSharpDocument value)
     {
         Debug.Assert(value is not null);
         if (ReferenceEquals(value, _csharpDocument2))

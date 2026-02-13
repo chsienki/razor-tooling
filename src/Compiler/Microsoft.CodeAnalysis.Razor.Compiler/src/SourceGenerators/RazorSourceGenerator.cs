@@ -325,7 +325,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                         hintName: GetIdentifierFromPath(filePath),
                         codeDocument: document.CodeDocument,
                         csharpDocument: document.CodeDocument.GetRequiredCSharpDocument(),
-                        csharpDocument2: document.CodeDocument.GetCSharpDocument2());
+                        csharpDocument2: document.CodeDocument.GetDeclCSharpDocument());
                 })
                 .WithLambdaComparer(static (a, b) =>
                 {
@@ -351,7 +351,7 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
 
             context.RegisterImplementationSourceOutput(csharpDocumentsWithSuppressionFlag, static (context, pair) =>
             {
-                var ((hintName, _, csharpDocument, csharpDocument2), isGeneratorSuppressed) = pair;
+                var ((hintName, _, csharpDocument, declCSharpDocument), isGeneratorSuppressed) = pair;
 
                 // When the generator is suppressed, we may still have a lot of cached data for perf, but we don't want to actually add any of the files to the output
                 if (!isGeneratorSuppressed)
@@ -363,11 +363,11 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                         context.ReportDiagnostic(csharpDiagnostic);
                     }
 
-                    context.AddSource(hintName, csharpDocument.Text);
-                    if(csharpDocument2 is not null)
+                    if (declCSharpDocument is not null)
                     {
-                        context.AddSource(hintName + ".render.g.cs", csharpDocument2.Text);
+                        context.AddSource(hintName + ".decl.g.cs", declCSharpDocument.Text);
                     }
+                    context.AddSource(hintName, csharpDocument.Text);
                 }
             });
 

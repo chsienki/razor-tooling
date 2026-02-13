@@ -1306,8 +1306,9 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
                 var startTagName = node.StartTag.GetTagNameWithOptionalBang();
                 if (!string.IsNullOrEmpty(startTagName) && LooksLikeAComponentName(_document, startTagName))
                 {
-                    element.AddDiagnostic(
-                        ComponentDiagnosticFactory.Create_UnexpectedMarkupElement(startTagName, BuildSourceSpanFromNode(node.StartTag)));
+                    //PROTOTYPE: we need to only do this on the impl pass.
+                    //element.AddDiagnostic(
+                    //    ComponentDiagnosticFactory.Create_UnexpectedMarkupElement(startTagName, BuildSourceSpanFromNode(node.StartTag)));
                 }
             }
 

@@ -28,13 +28,21 @@ public sealed class RazorPageDocumentClassifierPass : DocumentClassifierPassBase
         RazorProjectFileSystem.Create("/"),
         builder =>
         {
+            bool sawOne = false;
             for (var i = builder.Phases.Count - 1; i >= 0; i--)
             {
                 var phase = builder.Phases[i];
                 builder.Phases.RemoveAt(i);
                 if (phase is IRazorDocumentClassifierPhase)
                 {
-                    break;
+                    if (sawOne)
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        sawOne = true;
+                    }
                 }
             }
 
