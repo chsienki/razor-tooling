@@ -33,7 +33,7 @@
     <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.EditorFeatures.Text\$(RoslynConfiguration)\$(RoslynTargetFramework)\Microsoft.CodeAnalysis.EditorFeatures.Text.dll" />
     <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.CSharp.Features\$(RoslynConfiguration)\$(RoslynTargetFramework)\Microsoft.CodeAnalysis.CSharp.Features.dll" />
     <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.LanguageServer.Protocol\$(RoslynConfiguration)\$(RoslynTargetFramework)\Microsoft.CodeAnalysis.LanguageServer.Protocol.dll" />
-    <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.CSharp.CodeStyle.Fixes\$(RoslynConfiguration)\netstandard2.0\Microsoft.Bcl.AsyncInterfaces.dll" />
+    <!--<Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.CSharp.CodeStyle.Fixes\$(RoslynConfiguration)\netstandard2.0\Microsoft.Bcl.AsyncInterfaces.dll" />-->
     <Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.CSharp.Workspaces.UnitTests\$(RoslynConfiguration)\net472\Microsoft.CodeAnalysis.Elfie.dll" />
   </ItemGroup>
 
