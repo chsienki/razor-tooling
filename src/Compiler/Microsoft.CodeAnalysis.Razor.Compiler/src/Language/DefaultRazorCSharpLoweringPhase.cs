@@ -29,16 +29,29 @@ internal class DefaultRazorCSharpLoweringPhase : RazorEnginePhaseBase, IRazorCSh
         //PROTOTYPE: we need to only do this for components and when in the non-decl rendering
         if (codeDocument.FileKind == RazorFileKind.Component && codeDocument.CodeGenerationOptions.SuppressPrimaryMethodBody != true)
         {
+
             // find the render tree method and remove it from the primary class
             var renderMethod = documentNode.FindPrimaryMethod(); // BuildRenderTree()
-            documentNode.FindPrimaryClass()!.Children.Remove(renderMethod);
+            var primaryClass = documentNode.FindPrimaryClass();
+            primaryClass!.Children.Remove(renderMethod); //TODO: error handling
 
             // use that to generate a doc without the render method
             var doc1 = WriteDocument(documentNode, codeDocument, cancellationToken);
 
-            // now remove everything else from the class, and put back the render method
-            documentNode.FindPrimaryClass()!.Children.Clear();
-            documentNode.FindPrimaryClass()!.Children.Add(renderMethod);
+            // remove everything except the primary namespace and its usings, and the primary class with the render method
+            var ns = documentNode.FindPrimaryNamespace();
+            var usings = ns!.FindDescendantNodes<UsingDirectiveIntermediateNode>();
+
+            primaryClass.Children.Clear();
+            primaryClass.Children.Add(renderMethod);
+
+            ns!.Children.Clear();
+            ns!.Children.AddRange(usings);
+            ns!.Children.Add(primaryClass);
+
+            documentNode.Children.Clear();
+            documentNode.Children.Add(ns);
+
             var doc2 = WriteDocument(documentNode, codeDocument, cancellationToken);
 
             return codeDocument.WithCSharpDocument(doc1).WithCSharpDocument2(doc2);
