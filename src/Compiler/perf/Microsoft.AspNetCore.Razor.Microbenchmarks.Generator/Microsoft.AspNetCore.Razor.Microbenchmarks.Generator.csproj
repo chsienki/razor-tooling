@@ -28,6 +28,9 @@
     <PackageReference Include="Microsoft.Build.Locator" />
     <PackageReference Include="System.Security.Cryptography.Xml" />
     <PackageReference Include="Microsoft.DiaSymReader" VersionOverride="2.0.0" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" VersionOverride="10.0.0" />
+    <!--<Reference Private="True" Include="D:\Projects\roslyn\artifacts\bin\Microsoft.CodeAnalysis.CSharp.CodeStyle.Fixes\$(RoslynConfiguration)\netstandard2.0\Microsoft.Bcl.AsyncInterfaces.dll" />-->
+
   </ItemGroup>
 
   <!-- Reference the local source generator when building in regular configurations -->

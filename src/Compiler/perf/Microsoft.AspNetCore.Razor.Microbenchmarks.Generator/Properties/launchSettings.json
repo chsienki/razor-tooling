@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "Microsoft.AspNetCore.Razor.Microbenchmarks.Generator": {
+      "commandName": "Project"
+    },
+    "DebugCSC": {
+      "commandName": "Executable",
+      "executablePath": "D:\\Projects\\roslyn\\artifacts\\bin\\csc\\Debug\\net10.0\\csc.exe",
+      "commandLineArgs": "@\"D:\\Projects\\scratch\\BlazorApp71\\BlazorApp71\\.complog\\rsp\\BlazorApp71\\build.rsp\"",
+      "workingDirectory": "D:\\projects\\scratch\\BlazorApp71\\BlazorApp71\\"
+    }
+  }
+}
