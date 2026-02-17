@@ -37,19 +37,19 @@ internal class DefaultRazorDeclCSharpLoweringPhase : RazorEnginePhaseBase, IRazo
             // use that to generate a doc without the render method
             var declDoc = DefaultRazorCSharpLoweringPhase.WriteDocument(documentNode, codeDocument, cancellationToken);
 
-            //// remove everything except the primary namespace and its usings, and the primary class with the render method
-            //var ns = documentNode.FindPrimaryNamespace();
-            //var usings = ns!.FindDescendantNodes<UsingDirectiveIntermediateNode>();
+            // remove everything except the primary namespace and its usings, and the primary class with the render method
+            var ns = documentNode.FindPrimaryNamespace();
+            var usings = ns!.FindDescendantNodes<UsingDirectiveIntermediateNode>();
 
-            //primaryClass.Children.Clear();
-            //primaryClass.Children.Add(renderMethod);
+            primaryClass.Children.Clear();
+            primaryClass.Children.Add(renderMethod);
 
-            //ns!.Children.Clear();
-            //ns!.Children.AddRange(usings);
-            //ns!.Children.Add(primaryClass);
+            ns!.Children.Clear();
+            ns!.Children.AddRange(usings);
+            ns!.Children.Add(primaryClass);
 
-            //documentNode.Children.Clear();
-            //documentNode.Children.Add(ns);
+            documentNode.Children.Clear();
+            documentNode.Children.Add(ns);
 
             return codeDocument.WithDeclCSharpDocument(declDoc);
         }

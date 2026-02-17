@@ -28,6 +28,9 @@ internal class DefaultRazorCSharpLoweringPhase : RazorEnginePhaseBase, IRazorCSh
 
         // PROTOTYPE: we have to do this again because we're re-running the node lowering
         //if (codeDocument.GetDeclCSharpDocument() is not null)
+        //{
+        //    int x = 4;
+        //}
         if (codeDocument.FileKind == RazorFileKind.Component && codeDocument.CodeGenerationOptions.SuppressPrimaryMethodBody != true)
         {
             // remove everything except the primary namespace and its usings, and the primary class with the render method
