@@ -337,17 +337,20 @@ public sealed class RazorProjectEngine
 
         // decl phase.
         phases.Add(new DefaultRazorIntermediateNodeLoweringPhase());
+        //phases.Add(new DefaultRazorTagHelperNodeLoweringPhase());
         phases.Add(new DefaultRazorDocumentClassifierPhase());
         phases.Add(new DefaultRazorDirectiveClassifierPhase());
-        phases.Add(new DefaultRazorOptimizationPhase());
+        //phases.Add(new DefaultRazorOptimizationPhase());
         phases.Add(new DefaultRazorDeclCSharpLoweringPhase());
 
         // impl phase.
         phases.Add(new DefaultRazorTagHelperContextDiscoveryPhase());
         phases.Add(new DefaultRazorTagHelperRewritePhase());
-        phases.Add(new DefaultRazorIntermediateNodeLoweringPhase());
-        phases.Add(new DefaultRazorDocumentClassifierPhase());
-        phases.Add(new DefaultRazorDirectiveClassifierPhase());
+        phases.Add(new DefaultRazorMarkupElementCollapsingPhase()); // Collapse remaining MarkupElementIntermediateNode to HtmlContent
+        //phases.Add(new DefaultRazorIntermediateNodeLoweringPhase());
+        //phases.Add(new DefaultRazorTagHelperNodeLoweringPhase());
+        //phases.Add(new DefaultRazorDocumentClassifierPhase());
+        //phases.Add(new DefaultRazorDirectiveClassifierPhase());
         phases.Add(new DefaultRazorOptimizationPhase());
         phases.Add(new DefaultRazorCSharpLoweringPhase());
     }

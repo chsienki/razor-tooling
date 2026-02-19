@@ -152,13 +152,13 @@ public sealed class RazorPageDocumentClassifierPass : DocumentClassifierPassBase
             var leadingDirectiveCodeDocument = LeadingDirectiveParsingEngine.CreateCodeDocument(codeDocument.Source);
             leadingDirectiveCodeDocument = LeadingDirectiveParsingEngine.Engine.Process(leadingDirectiveCodeDocument);
 
-            var leadingDirectiveDocumentNode = leadingDirectiveCodeDocument.GetRequiredDocumentNode();
-            if (!PageDirective.TryGetPageDirective(leadingDirectiveDocumentNode, out _))
-            {
-                // The page directive is not the leading directive. Add an error.
-                pageDirective.DirectiveNode.AddDiagnostic(
-                    RazorExtensionsDiagnosticFactory.CreatePageDirective_MustExistAtTheTopOfFile(pageDirective.DirectiveNode.Source.AssumeNotNull()));
-            }
+            //var leadingDirectiveDocumentNode = leadingDirectiveCodeDocument.GetRequiredDocumentNode();
+            //if (!PageDirective.TryGetPageDirective(leadingDirectiveDocumentNode, out _))
+            //{
+            //    // The page directive is not the leading directive. Add an error.
+            //    pageDirective.DirectiveNode.AddDiagnostic(
+            //        RazorExtensionsDiagnosticFactory.CreatePageDirective_MustExistAtTheTopOfFile(pageDirective.DirectiveNode.Source.AssumeNotNull()));
+            //}
         }
     }
 }

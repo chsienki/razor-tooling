@@ -611,13 +611,55 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
     // Lowers a document using *html-as-text* and Tag Helpers
     private class LegacyFileKindVisitor : LoweringVisitor
     {
-        private readonly HashSet<string> _renderedBoundAttributeNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly string _tagHelperPrefix;
 
         public LegacyFileKindVisitor(DocumentIntermediateNode document, IntermediateNodeBuilder builder, string tagHelperPrefix, RazorParserOptions options)
             : base(document, builder, options)
         {
             _tagHelperPrefix = tagHelperPrefix;
+        }
+
+        public override void VisitMarkupElement(MarkupElementSyntax node)
+        {
+            if ((node.StartTag != null && node.StartTag.IsMarkupTransition) ||
+                (node.EndTag != null && node.EndTag.IsMarkupTransition))
+            {
+                // We don't want to create a node for Markup transitions (<text></text>). Treat their contents as regular markup.
+                base.VisitMarkupElement(node);
+                return;
+            }
+
+            var element = new MarkupElementIntermediateNode()
+            {
+                Source = BuildSourceSpanFromNode(node),
+                TagName = node.StartTag?.Name.Content ?? node.EndTag?.Name.Content ?? string.Empty,
+            };
+
+            _builder.Push(element);
+
+            // Visit start tag to get attributes
+            if (node.StartTag != null)
+            {
+                foreach (var block in node.StartTag.Attributes)
+                {
+                    if (block is MarkupAttributeBlockSyntax attribute)
+                    {
+                        VisitMarkupAttributeBlock(attribute);
+                    }
+                    else if (block is MarkupMinimizedAttributeBlockSyntax minimized)
+                    {
+                        VisitMarkupMinimizedAttributeBlock(minimized);
+                    }
+                }
+            }
+
+            // Visit body
+            foreach (var child in node.Body)
+            {
+                Visit(child);
+            }
+
+            _builder.Pop();
         }
 
         // Example
@@ -1047,115 +1089,28 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
                 Visit(item);
             }
 
-            _builder.Pop(); // Pop InitializeTagHelperStructureIntermediateNode
+            _builder.Pop(); // Pop TagHelperBodyIntermediateNode
 
-            Visit(node.StartTag);
+            // TagHelper attributes are processed by DefaultRazorTagHelperNodeLoweringPhase
 
             _builder.Pop(); // Pop TagHelperIntermediateNode
 
             // No need to visit the end tag because we don't write any IR for it.
-
-            // We don't want to track attributes from a previous tag helper element.
-            _renderedBoundAttributeNames.Clear();
         }
 
         public override void VisitMarkupTagHelperStartTag(MarkupTagHelperStartTagSyntax node)
         {
-            foreach (var child in node.Attributes)
-            {
-                if (child is MarkupTagHelperAttributeSyntax || child is MarkupMinimizedTagHelperAttributeSyntax)
-                {
-                    Visit(child);
-                }
-            }
+            // TagHelper attributes are processed by DefaultRazorTagHelperNodeLoweringPhase
         }
 
         public override void VisitMarkupMinimizedTagHelperAttribute(MarkupMinimizedTagHelperAttributeSyntax node)
         {
-            if (!_options.AllowMinimizedBooleanTagHelperAttributes)
-            {
-                // Minimized attributes are not valid for non-boolean bound attributes. TagHelperBlockRewriter
-                // has already logged an error if it was a non-boolean bound attribute; so we can skip.
-                return;
-            }
-
-            var element = node.FirstAncestorOrSelf<MarkupTagHelperElementSyntax>();
-            var tagHelpers = element.TagHelperInfo.BindingResult.TagHelpers;
-            var attributeName = node.Name.GetContent();
-
-            using var matches = new PooledArrayBuilder<TagHelperAttributeMatch>();
-            TagHelperMatchingConventions.GetAttributeMatches(tagHelpers, attributeName, ref matches.AsRef());
-
-            if (matches.Any() && _renderedBoundAttributeNames.Add(attributeName))
-            {
-                foreach (var match in matches)
-                {
-                    if (!match.ExpectsBooleanValue)
-                    {
-                        // We do not allow minimized non-boolean bound attributes.
-                        return;
-                    }
-
-                    var setTagHelperProperty = new TagHelperPropertyIntermediateNode(match)
-                    {
-                        AttributeName = attributeName,
-                        AttributeStructure = node.TagHelperAttributeInfo.AttributeStructure,
-                        Source = null,
-                    };
-
-                    _builder.Add(setTagHelperProperty);
-                }
-            }
-            else
-            {
-                var addHtmlAttribute = new TagHelperHtmlAttributeIntermediateNode()
-                {
-                    AttributeName = attributeName,
-                    AttributeStructure = node.TagHelperAttributeInfo.AttributeStructure
-                };
-
-                _builder.Add(addHtmlAttribute);
-            }
+            // TagHelper attributes are processed by DefaultRazorTagHelperNodeLoweringPhase
         }
 
         public override void VisitMarkupTagHelperAttribute(MarkupTagHelperAttributeSyntax node)
         {
-            var element = node.FirstAncestorOrSelf<MarkupTagHelperElementSyntax>();
-            var tagHelpers = element.TagHelperInfo.BindingResult.TagHelpers;
-            var attributeName = node.Name.GetContent();
-            var attributeValueNode = node.Value;
-
-            using var matches = new PooledArrayBuilder<TagHelperAttributeMatch>();
-            TagHelperMatchingConventions.GetAttributeMatches(tagHelpers, attributeName, ref matches.AsRef());
-
-            if (matches.Any() && _renderedBoundAttributeNames.Add(attributeName))
-            {
-                foreach (var match in matches)
-                {
-                    var setTagHelperProperty = new TagHelperPropertyIntermediateNode(match)
-                    {
-                        AttributeName = attributeName,
-                        AttributeStructure = node.TagHelperAttributeInfo.AttributeStructure,
-                        Source = BuildSourceSpanFromNode(attributeValueNode),
-                    };
-
-                    _builder.Push(setTagHelperProperty);
-                    VisitAttributeValue(attributeValueNode);
-                    _builder.Pop();
-                }
-            }
-            else
-            {
-                var addHtmlAttribute = new TagHelperHtmlAttributeIntermediateNode()
-                {
-                    AttributeName = attributeName,
-                    AttributeStructure = node.TagHelperAttributeInfo.AttributeStructure
-                };
-
-                _builder.Push(addHtmlAttribute);
-                VisitAttributeValue(attributeValueNode);
-                _builder.Pop();
-            }
+            // TagHelper attributes are processed by DefaultRazorTagHelperNodeLoweringPhase
         }
 
         private void VisitAttributeValue(SyntaxNode node)
@@ -1247,8 +1202,6 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
     // Lowers a document using *html-as-nodes* and Components
     private class ComponentFileKindVisitor : LoweringVisitor
     {
-        private readonly HashSet<string> _renderedBoundAttributeNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
         public ComponentFileKindVisitor(
             DocumentIntermediateNode document,
             IntermediateNodeBuilder builder,
@@ -1780,16 +1733,13 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
                 Visit(item);
             }
 
-            _builder.Pop(); // Pop InitializeTagHelperStructureIntermediateNode
+            _builder.Pop(); // Pop TagHelperBodyIntermediateNode
 
-            Visit(node.StartTag);
+            // TagHelper attributes are processed by DefaultRazorTagHelperNodeLoweringPhase
 
             _builder.Pop(); // Pop TagHelperIntermediateNode
 
             // No need to visit the end tag because we don't write any IR for it.
-
-            // We don't want to track attributes from a previous tag helper element.
-            _renderedBoundAttributeNames.Clear();
 
             if (node.StartTag != null && node.EndTag != null)
             {
@@ -1807,220 +1757,27 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
 
         public override void VisitMarkupTagHelperStartTag(MarkupTagHelperStartTagSyntax node)
         {
-            foreach (var child in node.Attributes)
-            {
-                if (child is MarkupTagHelperAttributeSyntax ||
-                    child is MarkupMinimizedTagHelperAttributeSyntax ||
-                    child is MarkupTagHelperDirectiveAttributeSyntax ||
-                    child is MarkupMinimizedTagHelperDirectiveAttributeSyntax)
-                {
-                    Visit(child);
-                }
-            }
+            // TagHelper attributes are processed by DefaultRazorTagHelperNodeLoweringPhase
         }
 
         public override void VisitMarkupMinimizedTagHelperAttribute(MarkupMinimizedTagHelperAttributeSyntax node)
         {
-            if (!_options.AllowMinimizedBooleanTagHelperAttributes)
-            {
-                // Minimized attributes are not valid for non-boolean bound attributes. TagHelperBlockRewriter
-                // has already logged an error if it was a non-boolean bound attribute; so we can skip.
-                return;
-            }
-
-            var element = node.FirstAncestorOrSelf<MarkupTagHelperElementSyntax>();
-            var tagHelpers = element.TagHelperInfo.BindingResult.TagHelpers;
-            var attributeName = node.Name.GetContent();
-
-            using var matches = new PooledArrayBuilder<TagHelperAttributeMatch>();
-            TagHelperMatchingConventions.GetAttributeMatches(tagHelpers, attributeName, ref matches.AsRef());
-
-            if (matches.Any() && _renderedBoundAttributeNames.Add(attributeName))
-            {
-                foreach (var match in matches)
-                {
-                    if (!match.ExpectsBooleanValue)
-                    {
-                        // We do not allow minimized non-boolean bound attributes.
-                        return;
-                    }
-
-                    var setTagHelperProperty = new TagHelperPropertyIntermediateNode(match)
-                    {
-                        AttributeName = attributeName,
-                        AttributeStructure = node.TagHelperAttributeInfo.AttributeStructure,
-                        Source = null,
-                        OriginalAttributeSpan = BuildSourceSpanFromNode(node.Name)
-                    };
-
-                    _builder.Add(setTagHelperProperty);
-                }
-            }
-            else
-            {
-                var addHtmlAttribute = new TagHelperHtmlAttributeIntermediateNode()
-                {
-                    AttributeName = attributeName,
-                    AttributeStructure = node.TagHelperAttributeInfo.AttributeStructure
-                };
-
-                _builder.Add(addHtmlAttribute);
-            }
+            // TagHelper attributes are processed by DefaultRazorTagHelperNodeLoweringPhase
         }
 
         public override void VisitMarkupMinimizedTagHelperDirectiveAttribute(MarkupMinimizedTagHelperDirectiveAttributeSyntax node)
         {
-            if (!_options.AllowMinimizedBooleanTagHelperAttributes)
-            {
-                // Minimized attributes are not valid for non-boolean bound attributes. TagHelperBlockRewriter
-                // has already logged an error if it was a non-boolean bound attribute; so we can skip.
-                return;
-            }
-
-            var element = node.FirstAncestorOrSelf<MarkupTagHelperElementSyntax>();
-            var tagHelpers = element.TagHelperInfo.BindingResult.TagHelpers;
-            var attributeName = node.FullName;
-
-            using var matches = new PooledArrayBuilder<TagHelperAttributeMatch>();
-            TagHelperMatchingConventions.GetAttributeMatches(tagHelpers, attributeName, ref matches.AsRef());
-
-            if (matches.Any() && _renderedBoundAttributeNames.Add(attributeName))
-            {
-                var directiveAttributeName = new DirectiveAttributeName(attributeName);
-
-                foreach (var match in matches)
-                {
-                    if (!match.ExpectsBooleanValue)
-                    {
-                        // We do not allow minimized non-boolean bound attributes.
-                        return;
-                    }
-
-                    IntermediateNode attributeNode = match.IsParameterMatch && directiveAttributeName.HasParameter
-                        ? new TagHelperDirectiveAttributeParameterIntermediateNode(match)
-                        {
-                            AttributeName = directiveAttributeName.Text,
-                            AttributeNameWithoutParameter = directiveAttributeName.TextWithoutParameter,
-                            OriginalAttributeName = attributeName,
-                            AttributeStructure = node.TagHelperAttributeInfo.AttributeStructure,
-                            Source = null
-                        }
-                        : new TagHelperDirectiveAttributeIntermediateNode(match)
-                        {
-                            AttributeName = directiveAttributeName.Text,
-                            OriginalAttributeName = attributeName,
-                            AttributeStructure = node.TagHelperAttributeInfo.AttributeStructure,
-                            Source = null,
-                        };
-
-                    _builder.Add(attributeNode);
-                }
-            }
-            else
-            {
-                var addHtmlAttribute = new TagHelperHtmlAttributeIntermediateNode()
-                {
-                    AttributeName = attributeName,
-                    AttributeStructure = node.TagHelperAttributeInfo.AttributeStructure
-                };
-
-                _builder.Add(addHtmlAttribute);
-            }
+            // TagHelper attributes are processed by DefaultRazorTagHelperNodeLoweringPhase
         }
 
         public override void VisitMarkupTagHelperAttribute(MarkupTagHelperAttributeSyntax node)
         {
-            var element = node.FirstAncestorOrSelf<MarkupTagHelperElementSyntax>();
-            var tagHelpers = element.TagHelperInfo.BindingResult.TagHelpers;
-            var attributeName = node.Name.GetContent();
-            var attributeValueNode = node.Value;
-
-            using var matches = new PooledArrayBuilder<TagHelperAttributeMatch>();
-            TagHelperMatchingConventions.GetAttributeMatches(tagHelpers, attributeName, ref matches.AsRef());
-
-            if (matches.Any() && _renderedBoundAttributeNames.Add(attributeName))
-            {
-                foreach (var match in matches)
-                {
-                    var setTagHelperProperty = new TagHelperPropertyIntermediateNode(match)
-                    {
-                        AttributeName = attributeName,
-                        AttributeStructure = node.TagHelperAttributeInfo.AttributeStructure,
-                        Source = BuildSourceSpanFromNode(attributeValueNode),
-                        OriginalAttributeSpan = BuildSourceSpanFromNode(node.Name)
-                    };
-
-                    _builder.Push(setTagHelperProperty);
-                    VisitAttributeValue(attributeValueNode);
-                    _builder.Pop();
-                }
-            }
-            else
-            {
-                var addHtmlAttribute = new TagHelperHtmlAttributeIntermediateNode()
-                {
-                    AttributeName = attributeName,
-                    AttributeStructure = node.TagHelperAttributeInfo.AttributeStructure
-                };
-
-                _builder.Push(addHtmlAttribute);
-                VisitAttributeValue(attributeValueNode);
-                _builder.Pop();
-            }
+            // TagHelper attributes are processed by DefaultRazorTagHelperNodeLoweringPhase
         }
 
         public override void VisitMarkupTagHelperDirectiveAttribute(MarkupTagHelperDirectiveAttributeSyntax node)
         {
-            var element = node.FirstAncestorOrSelf<MarkupTagHelperElementSyntax>();
-            var tagHelpers = element.TagHelperInfo.BindingResult.TagHelpers;
-            var attributeName = node.FullName;
-            var attributeValueNode = node.Value;
-
-            using var matches = new PooledArrayBuilder<TagHelperAttributeMatch>();
-            TagHelperMatchingConventions.GetAttributeMatches(tagHelpers, attributeName, ref matches.AsRef());
-
-            if (matches.Any() && _renderedBoundAttributeNames.Add(attributeName))
-            {
-                var directiveAttributeName = new DirectiveAttributeName(attributeName);
-
-                foreach (var match in matches)
-                {
-                    IntermediateNode attributeNode = match.IsParameterMatch && directiveAttributeName.HasParameter
-                        ? new TagHelperDirectiveAttributeParameterIntermediateNode(match)
-                        {
-                            AttributeName = directiveAttributeName.Text,
-                            AttributeNameWithoutParameter = directiveAttributeName.TextWithoutParameter,
-                            OriginalAttributeName = attributeName,
-                            AttributeStructure = node.TagHelperAttributeInfo.AttributeStructure,
-                            Source = BuildSourceSpanFromNode(attributeValueNode),
-                            OriginalAttributeSpan = BuildSourceSpanFromNode(node.Name)
-                        }
-                        : new TagHelperDirectiveAttributeIntermediateNode(match)
-                        {
-                            AttributeName = directiveAttributeName.Text,
-                            OriginalAttributeName = attributeName,
-                            AttributeStructure = node.TagHelperAttributeInfo.AttributeStructure,
-                            Source = BuildSourceSpanFromNode(attributeValueNode),
-                            OriginalAttributeSpan = BuildSourceSpanFromNode(node.Name)
-                        };
-
-                    _builder.Push(attributeNode);
-                    VisitAttributeValue(attributeValueNode);
-                    _builder.Pop();
-                }
-            }
-            else
-            {
-                var addHtmlAttribute = new TagHelperHtmlAttributeIntermediateNode()
-                {
-                    AttributeName = attributeName,
-                    AttributeStructure = node.TagHelperAttributeInfo.AttributeStructure
-                };
-
-                _builder.Push(addHtmlAttribute);
-                VisitAttributeValue(attributeValueNode);
-                _builder.Pop();
-            }
+            // TagHelper attributes are processed by DefaultRazorTagHelperNodeLoweringPhase
         }
 
         private void VisitAttributeValue(SyntaxNode node)

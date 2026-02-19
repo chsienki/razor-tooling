@@ -31,24 +31,24 @@ internal class DefaultRazorCSharpLoweringPhase : RazorEnginePhaseBase, IRazorCSh
         //{
         //    int x = 4;
         //}
-        if (codeDocument.FileKind == RazorFileKind.Component && codeDocument.CodeGenerationOptions.SuppressPrimaryMethodBody != true)
-        {
-            // remove everything except the primary namespace and its usings, and the primary class with the render method
-            var primaryClass = documentNode.FindPrimaryClass()!;
-            var renderMethod = documentNode.FindPrimaryMethod()!; // BuildRenderTree()
-            var ns = documentNode.FindPrimaryNamespace()!;
-            var usings = ns.FindDescendantNodes<UsingDirectiveIntermediateNode>();
+        //if (codeDocument.FileKind == RazorFileKind.Component && codeDocument.CodeGenerationOptions.SuppressPrimaryMethodBody != true)
+        //{
+        //    // remove everything except the primary namespace and its usings, and the primary class with the render method
+        //    var primaryClass = documentNode.FindPrimaryClass()!;
+        //    var renderMethod = documentNode.FindPrimaryMethod()!; // BuildRenderTree()
+        //    var ns = documentNode.FindPrimaryNamespace()!;
+        //    var usings = ns.FindDescendantNodes<UsingDirectiveIntermediateNode>();
 
-            primaryClass.Children.Clear();
-            primaryClass.Children.Add(renderMethod);
+        //    primaryClass.Children.Clear();
+        //    primaryClass.Children.Add(renderMethod);
 
-            ns.Children.Clear();
-            ns.Children.AddRange(usings);
-            ns.Children.Add(primaryClass);
+        //    ns.Children.Clear();
+        //    ns.Children.AddRange(usings);
+        //    ns.Children.Add(primaryClass);
 
-            documentNode.Children.Clear();
-            documentNode.Children.Add(ns);
-        }
+        //    documentNode.Children.Clear();
+        //    documentNode.Children.Add(ns);
+        //}
 
         var csharpDocument = WriteDocument(documentNode, codeDocument, cancellationToken);
         return codeDocument.WithCSharpDocument(csharpDocument);
