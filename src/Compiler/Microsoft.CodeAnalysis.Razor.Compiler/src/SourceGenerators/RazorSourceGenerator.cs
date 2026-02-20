@@ -80,9 +80,8 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                 return false;
             });
 
-            var componentFiles = sourceItems.Where(static file => FileUtilities.IsRazorComponentFilePath(file.FilePath, StringComparison.OrdinalIgnoreCase));
-
-            var generatedDeclarationText = componentFiles
+            // do the initial process of the files
+            var initialProcess = sourceItems
                 .Combine(importFiles.Collect())
                 .Combine(razorSourceGeneratorOptions)
                 .WithLambdaComparer((old, @new) => old.Right.Equals(@new.Right) && old.Left.Left.Equals(@new.Left.Left) && old.Left.Right.SequenceEqual(@new.Left.Right))
@@ -91,38 +90,64 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     var ((sourceItem, importFiles), razorSourceGeneratorOptions) = pair;
                     RazorSourceGeneratorEventSource.Log.GenerateDeclarationCodeStart(sourceItem.FilePath);
 
-                    var projectEngine2 = GetGenerationProjectEngine(sourceItem, importFiles, razorSourceGeneratorOptions);
-                    //var projectEngine = GetDeclarationProjectEngine(sourceItem, importFiles, razorSourceGeneratorOptions);
+                    var projectEngine = GetGenerationProjectEngine(sourceItem, importFiles, razorSourceGeneratorOptions);
+                    var sgDocument = projectEngine.ProcessInitialParse(sourceItem, false, cancellationToken);
 
-                    var sgDocument = projectEngine2.ProcessInitialParse(sourceItem, false, cancellationToken);
-
-                    //var codeGen = projectEngine.Process(sourceItem, cancellationToken);
-
-                    //var result = new SourceGeneratorText(codeGen.GetRequiredCSharpDocument().Text);
-                    var result2 = new SourceGeneratorText(sgDocument.CodeDocument.GetDeclCSharpDocument()!.Text);
+                    var hintName = GetIdentifierFromPath(sourceItem.FilePath);
                     RazorSourceGeneratorEventSource.Log.GenerateDeclarationCodeStop(sourceItem.FilePath);
 
-                    return result2;
+                    return (projectEngine, sgDocument, hintName);
                 });
 
-            var generatedDeclarationSyntaxTrees = generatedDeclarationText
-                .Combine(parseOptions)
-                .Select(static (pair, ct) =>
+            // now we're going to add any decl trees to the main compilation with our new API
+            context.RegisterPreCompilationOutput(initialProcess, (spc, pair) =>
+            {
+                if (pair.sgDocument.CodeDocument.GetDeclCSharpDocument() is RazorCSharpDocument declDoc)
                 {
-                    var (generatedDeclarationText, parseOptions) = pair;
+                    spc.AddSource(pair.hintName + ".decl.g.cs", declDoc.Text);
+                }
+            });
 
-                    return CSharpSyntaxTree.ParseText(generatedDeclarationText.Text, (CSharpParseOptions)parseOptions, cancellationToken: ct);
-                });
+            // so from now on the 'compilation' has our extra files in it. 
 
-            var declCompilation = generatedDeclarationSyntaxTrees
-                .Collect()
-                .Combine(compilation)
-                .Select(static (pair, _) =>
-                {
-                    return pair.Right.AddSyntaxTrees(pair.Left);
-                });
 
-            var tagHelpersFromCompilation = declCompilation
+            //var componentFiles = sourceItems.Where(static file => FileUtilities.IsRazorComponentFilePath(file.FilePath, StringComparison.OrdinalIgnoreCase));
+
+            //var generatedDeclarationText = componentFiles
+            //    .Combine(importFiles.Collect())
+            //    .Combine(razorSourceGeneratorOptions)
+            //    .WithLambdaComparer((old, @new) => old.Right.Equals(@new.Right) && old.Left.Left.Equals(@new.Left.Left) && old.Left.Right.SequenceEqual(@new.Left.Right))
+            //    .Select(static (pair, cancellationToken) =>
+            //    {
+            //        var ((sourceItem, importFiles), razorSourceGeneratorOptions) = pair;
+            //        RazorSourceGeneratorEventSource.Log.GenerateDeclarationCodeStart(sourceItem.FilePath);
+
+            //        var projectEngine2 = GetGenerationProjectEngine(sourceItem, importFiles, razorSourceGeneratorOptions);
+            //        var sgDocument = projectEngine2.ProcessInitialParse(sourceItem, false, cancellationToken);
+            //        var result2 = new SourceGeneratorText(sgDocument.CodeDocument.GetDeclCSharpDocument()!.Text);
+            //        RazorSourceGeneratorEventSource.Log.GenerateDeclarationCodeStop(sourceItem.FilePath);
+
+            //        return result2;
+            //    });
+
+            //var generatedDeclarationSyntaxTrees = generatedDeclarationText
+            //    .Combine(parseOptions)
+            //    .Select(static (pair, ct) =>
+            //    {
+            //        var (generatedDeclarationText, parseOptions) = pair;
+
+            //        return CSharpSyntaxTree.ParseText(generatedDeclarationText.Text, (CSharpParseOptions)parseOptions, cancellationToken: ct);
+            //    });
+
+            //var declCompilation = generatedDeclarationSyntaxTrees
+            //    .Collect()
+            //    .Combine(compilation)
+            //    .Select(static (pair, _) =>
+            //    {
+            //        return pair.Right.AddSyntaxTrees(pair.Left);
+            //    });
+
+            var tagHelpersFromCompilation = compilation
                 .Combine(razorSourceGeneratorOptions)
                 .SuppressIfNeeded(isGeneratorSuppressed)
                 .Select(static (pair, cancellationToken) =>
@@ -255,38 +280,25 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     return TagHelperCollection.Merge(pair.Left, pair.Right);
                 });
 
-            var withOptions = sourceItems
-                .Combine(importFiles.Collect())
-                .WithLambdaComparer((old, @new) => old.Left.Equals(@new.Left) && old.Right.SequenceEqual(@new.Right))
-                .Combine(razorSourceGeneratorOptions);
+            //var withOptions = sourceItems
+            //    .Combine(importFiles.Collect())
+            //    .WithLambdaComparer((old, @new) => old.Left.Equals(@new.Left) && old.Right.SequenceEqual(@new.Right))
+            //    .Combine(razorSourceGeneratorOptions);
 
-            // Currently unused. See https://github.com/dotnet/roslyn/issues/71024.
-            var razorHostOutputsEnabled = analyzerConfigOptions.CheckGlobalFlagSet("EnableRazorHostOutputs");
-            var withOptionsDesignTime = withOptions.EmptyOrCachedWhen(razorHostOutputsEnabled, false);
+            //// Currently unused. See https://github.com/dotnet/roslyn/issues/71024.
+            //var razorHostOutputsEnabled = analyzerConfigOptions.CheckGlobalFlagSet("EnableRazorHostOutputs");
+            //var withOptionsDesignTime = withOptions.EmptyOrCachedWhen(razorHostOutputsEnabled, false);
 
             IncrementalValuesProvider<(string, SourceGeneratorRazorCodeDocument)> processed(bool designTime)
             {
-                return (designTime ? withOptionsDesignTime : withOptions)
-                    .Select((pair, cancellationToken) =>
-                    {
-                        var ((sourceItem, imports), razorSourceGeneratorOptions) = pair;
-
-                        RazorSourceGeneratorEventSource.Log.ParseRazorDocumentStart(sourceItem.RelativePhysicalPath);
-
-                        var projectEngine = GetGenerationProjectEngine(sourceItem, imports, razorSourceGeneratorOptions);
-
-                        var document = projectEngine.ProcessInitialParse(sourceItem, designTime, cancellationToken);
-
-                        RazorSourceGeneratorEventSource.Log.ParseRazorDocumentStop(sourceItem.RelativePhysicalPath);
-                        return (projectEngine, sourceItem.RelativePhysicalPath, document);
-                    })
+                return initialProcess
 
                     // Add the tag helpers in, but ignore if they've changed or not, only reprocessing the actual document changed
                     .Combine(allTagHelpers)
                     .WithLambdaComparer((old, @new) => old.Left.Equals(@new.Left))
                     .Select(static (pair, cancellationToken) =>
                     {
-                        var ((projectEngine, filePath, codeDocument), allTagHelpers) = pair;
+                        var ((projectEngine, codeDocument, filePath), allTagHelpers) = pair;
                         RazorSourceGeneratorEventSource.Log.RewriteTagHelpersStart(filePath);
 
                         codeDocument = projectEngine.ProcessTagHelpers(codeDocument, allTagHelpers, checkForIdempotency: false, cancellationToken);
@@ -366,10 +378,10 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                         context.ReportDiagnostic(csharpDiagnostic);
                     }
 
-                    if (declCSharpDocument is not null)
-                    {
-                        context.AddSource(hintName + ".decl.g.cs", declCSharpDocument.Text);
-                    }
+                    //if (declCSharpDocument is not null)
+                    //{
+                    //    context.AddSource(hintName + ".decl.g.cs", declCSharpDocument.Text);
+                    //}
                     context.AddSource(hintName, csharpDocument.Text);
                 }
             });
