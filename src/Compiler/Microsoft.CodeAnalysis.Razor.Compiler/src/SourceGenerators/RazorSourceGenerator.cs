@@ -91,15 +91,18 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
                     var ((sourceItem, importFiles), razorSourceGeneratorOptions) = pair;
                     RazorSourceGeneratorEventSource.Log.GenerateDeclarationCodeStart(sourceItem.FilePath);
 
-                    var projectEngine = GetDeclarationProjectEngine(sourceItem, importFiles, razorSourceGeneratorOptions);
+                    var projectEngine2 = GetGenerationProjectEngine(sourceItem, importFiles, razorSourceGeneratorOptions);
+                    //var projectEngine = GetDeclarationProjectEngine(sourceItem, importFiles, razorSourceGeneratorOptions);
 
-                    var codeGen = projectEngine.Process(sourceItem, cancellationToken);
+                    var sgDocument = projectEngine2.ProcessInitialParse(sourceItem, false, cancellationToken);
 
-                    var result = new SourceGeneratorText(codeGen.GetRequiredCSharpDocument().Text);
+                    //var codeGen = projectEngine.Process(sourceItem, cancellationToken);
 
+                    //var result = new SourceGeneratorText(codeGen.GetRequiredCSharpDocument().Text);
+                    var result2 = new SourceGeneratorText(sgDocument.CodeDocument.GetDeclCSharpDocument()!.Text);
                     RazorSourceGeneratorEventSource.Log.GenerateDeclarationCodeStop(sourceItem.FilePath);
 
-                    return result;
+                    return result2;
                 });
 
             var generatedDeclarationSyntaxTrees = generatedDeclarationText

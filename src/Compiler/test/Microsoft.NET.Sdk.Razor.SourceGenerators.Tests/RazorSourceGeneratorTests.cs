@@ -1477,9 +1477,7 @@ using SurveyPromptRootNamspace;
         #pragma warning disable 1998
         protected override void BuildRenderTree(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)
         {
-            __builder.AddMarkupContent(0, ""<h1>Hello world</h1>\r\n"");
-            __builder.OpenElement(1, ""SurveyPrompt"");
-            __builder.CloseElement();
+            __builder.AddMarkupContent(0, ""<h1>Hello world</h1>\n<SurveyPrompt></SurveyPrompt>"");
         }
         #pragma warning restore 1998
     }
