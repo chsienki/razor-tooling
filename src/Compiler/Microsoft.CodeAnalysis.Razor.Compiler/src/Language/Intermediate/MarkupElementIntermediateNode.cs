@@ -32,6 +32,11 @@ public sealed class MarkupElementIntermediateNode : IntermediateNode
 
     public string TagName { get; set; }
 
+    /// <summary>
+    /// The tag mode of the element (e.g., self-closing, start tag and end tag, start tag only).
+    /// </summary>
+    public TagMode TagMode { get; set; }
+
     public override void Accept(IntermediateNodeVisitor visitor)
     {
         if (visitor == null)

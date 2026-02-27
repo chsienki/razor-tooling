@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 #nullable disable
@@ -20,7 +20,7 @@ using Microsoft.AspNetCore.Razor.PooledObjects;
 
 namespace Microsoft.AspNetCore.Razor.Language;
 
-internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase, IRazorIntermediateNodeLoweringPhase
+internal class TestRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase, IRazorIntermediateNodeLoweringPhase
 {
     protected override RazorCodeDocument ExecuteCore(RazorCodeDocument codeDocument, CancellationToken cancellationToken)
     {
@@ -622,11 +622,102 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
     {
         private readonly HashSet<string> _renderedBoundAttributeNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly string _tagHelperPrefix;
+        private bool _insideMarkupElement;
 
         public LegacyFileKindVisitor(DocumentIntermediateNode document, IntermediateNodeBuilder builder, string tagHelperPrefix, RazorParserOptions options)
             : base(document, builder, options)
         {
             _tagHelperPrefix = tagHelperPrefix;
+        }
+
+        public override void VisitMarkupElement(MarkupElementSyntax node)
+        {
+            if ((node.StartTag != null && node.StartTag.IsMarkupTransition) ||
+                (node.EndTag != null && node.EndTag.IsMarkupTransition))
+            {
+                base.VisitMarkupElement(node);
+                return;
+            }
+
+            var element = new MarkupElementIntermediateNode()
+            {
+                Source = BuildSourceSpanFromNode(node),
+                TagName = node.StartTag?.Name.Content ?? node.EndTag?.Name.Content ?? string.Empty,
+                TagMode = GetTagMode(node),
+            };
+
+            _builder.Push(element);
+            _insideMarkupElement = true;
+
+            base.VisitMarkupElement(node);
+
+            _insideMarkupElement = false;
+            _builder.Pop();
+        }
+
+        public override void VisitMarkupStartTag(MarkupStartTagSyntax node)
+        {
+            if (node.IsMarkupTransition)
+            {
+                return;
+            }
+
+            if (_insideMarkupElement)
+            {
+                // When inside a MarkupElementIntermediateNode, process attributes in a structured way
+                foreach (var block in node.Attributes)
+                {
+                    if (block is MarkupAttributeBlockSyntax attribute)
+                    {
+                        VisitMarkupAttributeBlock(attribute);
+                    }
+                    else if (block is MarkupMinimizedAttributeBlockSyntax minimized)
+                    {
+                        VisitMarkupMinimizedAttributeBlock(minimized);
+                    }
+                }
+            }
+            else
+            {
+                foreach (var child in node.LegacyChildren)
+                {
+                    Visit(child);
+                }
+            }
+        }
+
+        public override void VisitMarkupEndTag(MarkupEndTagSyntax node)
+        {
+            if (node.IsMarkupTransition)
+            {
+                return;
+            }
+
+            if (_insideMarkupElement)
+            {
+                // When inside a MarkupElementIntermediateNode, skip the end tag (it's already tracked by the element node)
+                return;
+            }
+
+            foreach (var child in node.LegacyChildren)
+            {
+                Visit(child);
+            }
+        }
+
+        private static TagMode GetTagMode(MarkupElementSyntax node)
+        {
+            if (node.StartTag != null && node.StartTag.IsSelfClosing())
+            {
+                return TagMode.SelfClosing;
+            }
+
+            if (node.EndTag == null && node.StartTag != null && node.StartTag.IsVoidElement())
+            {
+                return TagMode.StartTagOnly;
+            }
+
+            return TagMode.StartTagAndEndTag;
         }
 
         // Example
@@ -659,7 +750,7 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
                 {
                     var children = new ChildNodesHelper(blockSyntax.ChildNodesAndTokens());
 
-                    if (children.TryCast<MarkupLiteralAttributeValueSyntax>(out var attributeLiteralArray))
+                    if (!_insideMarkupElement && children.TryCast<MarkupLiteralAttributeValueSyntax>(out var attributeLiteralArray))
                     {
                         using var builder = new PooledArrayBuilder<SyntaxToken>();
 
@@ -956,34 +1047,6 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
             }
 
             VisitHtmlContent(node);
-        }
-
-        public override void VisitMarkupStartTag(MarkupStartTagSyntax node)
-        {
-            if (node.IsMarkupTransition)
-            {
-                // No need to visit <text> tags.
-                return;
-            }
-
-            foreach (var child in node.LegacyChildren)
-            {
-                Visit(child);
-            }
-        }
-
-        public override void VisitMarkupEndTag(MarkupEndTagSyntax node)
-        {
-            if (node.IsMarkupTransition)
-            {
-                // No need to visit </text> tags.
-                return;
-            }
-
-            foreach (var child in node.LegacyChildren)
-            {
-                Visit(child);
-            }
         }
 
         private void VisitHtmlContent(SyntaxNode node)
