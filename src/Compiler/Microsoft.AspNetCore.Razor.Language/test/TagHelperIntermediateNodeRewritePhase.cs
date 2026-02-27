@@ -34,7 +34,7 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
         var binder = tagHelperContext.GetBinder();
         var prefix = tagHelperContext.Prefix;
 
-        var rewriter = new TagHelperRewriter(binder, prefix, codeDocument.FileKind.IsComponent());
+        var rewriter = new TagHelperRewriter(binder, prefix, codeDocument.FileKind.IsComponent(), codeDocument.Source);
         rewriter.Visit(documentNode);
 
         return codeDocument;
@@ -45,12 +45,14 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
         private readonly TagHelperBinder _binder;
         private readonly string _prefix;
         private readonly bool _isComponent;
+        private readonly RazorSourceDocument _sourceDocument;
 
-        public TagHelperRewriter(TagHelperBinder binder, string prefix, bool isComponent)
+        public TagHelperRewriter(TagHelperBinder binder, string prefix, bool isComponent, RazorSourceDocument sourceDocument)
         {
             _binder = binder;
             _prefix = prefix;
             _isComponent = isComponent;
+            _sourceDocument = sourceDocument;
         }
 
         public override void VisitMarkupElement(MarkupElementIntermediateNode node)
@@ -61,6 +63,11 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
             var tagName = node.TagName;
             if (string.IsNullOrEmpty(tagName))
             {
+                if (!_isComponent)
+                {
+                    FlattenMarkupElement(node, Parent);
+                }
+
                 return;
             }
 
@@ -95,6 +102,12 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
             var binding = _binder.GetBinding(tagName, attributePairs.ToImmutable(), parentTagName, parentIsTagHelper);
             if (binding is null)
             {
+                // For legacy files, flatten non-matched elements back to HtmlContent
+                if (!_isComponent)
+                {
+                    FlattenMarkupElement(node, Parent);
+                }
+
                 return;
             }
 
@@ -106,6 +119,186 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
             {
                 var reference = new IntermediateNodeReference(node, Parent);
                 reference.Replace(tagHelperNode);
+            }
+        }
+
+        /// <summary>
+        /// For legacy files, non-tag-helper elements need to be flattened back to HtmlContent
+        /// since the legacy pipeline doesn't produce MarkupElementIntermediateNode for regular elements.
+        /// Uses source spans stored on the element to reconstruct start/end tag text tokens.
+        /// </summary>
+        private void FlattenMarkupElement(MarkupElementIntermediateNode node, IntermediateNode parent)
+        {
+            if (parent is null)
+            {
+                return;
+            }
+
+            var parentChildren = parent.Children;
+            var index = parentChildren.IndexOf(node);
+            if (index < 0)
+            {
+                return;
+            }
+
+            // Remove the MarkupElement node
+            parentChildren.RemoveAt(index);
+
+            // Build the replacement children list: start tag tokens, body, end tag tokens
+            using var replacements = new PooledArrayBuilder<IntermediateNode>();
+            var sourceText = _sourceDocument.Text;
+
+            // Start tag tokens
+            if (node.StartTagSource is SourceSpan startTagSpan)
+            {
+                var tagName = node.TagName ?? string.Empty;
+                var tagOpenLength = 1 + tagName.Length; // "<" + tagName
+
+                // Token for "<tagname"
+                var tagOpenSource = BuildSourceSpan(startTagSpan.AbsoluteIndex, tagOpenLength);
+                var tagOpenContent = sourceText.GetSubText(
+                    new Microsoft.CodeAnalysis.Text.TextSpan(startTagSpan.AbsoluteIndex, tagOpenLength)).ToString();
+                AddHtmlToken(ref replacements.AsRef(), tagOpenContent, tagOpenSource);
+
+                // Token for close bracket (">" or "/>")
+                var startTagFullText = sourceText.GetSubText(
+                    new Microsoft.CodeAnalysis.Text.TextSpan(startTagSpan.AbsoluteIndex, startTagSpan.Length)).ToString();
+                var closeBracketLocalPos = startTagFullText.LastIndexOf('>');
+                if (closeBracketLocalPos >= 0)
+                {
+                    // Include forward slash if self-closing (e.g., "/>")
+                    var bracketLocalStart = closeBracketLocalPos;
+                    if (bracketLocalStart > 0 && startTagFullText[bracketLocalStart - 1] == '/')
+                    {
+                        bracketLocalStart--;
+                    }
+
+                    // Handle whitespace before "/> " (e.g., " />")
+                    if (bracketLocalStart > 0 && startTagFullText[bracketLocalStart - 1] == ' ')
+                    {
+                        bracketLocalStart--;
+                    }
+
+                    var closeBracketAbsoluteStart = startTagSpan.AbsoluteIndex + bracketLocalStart;
+                    var closeBracketLength = startTagSpan.Length - bracketLocalStart;
+                    var closeBracketSource = BuildSourceSpan(closeBracketAbsoluteStart, closeBracketLength);
+                    var closeBracketContent = sourceText.GetSubText(
+                        new Microsoft.CodeAnalysis.Text.TextSpan(closeBracketAbsoluteStart, closeBracketLength)).ToString();
+                    AddHtmlToken(ref replacements.AsRef(), closeBracketContent, closeBracketSource);
+                }
+            }
+
+            // Body children (preserve as-is)
+            foreach (var child in node.Body)
+            {
+                replacements.Add(child);
+            }
+
+            // End tag tokens
+            if (node.EndTagSource is SourceSpan endTagSpan)
+            {
+                var endTagContent = sourceText.GetSubText(
+                    new Microsoft.CodeAnalysis.Text.TextSpan(endTagSpan.AbsoluteIndex, endTagSpan.Length)).ToString();
+                var endTagSource = BuildSourceSpan(endTagSpan.AbsoluteIndex, endTagSpan.Length);
+                AddHtmlToken(ref replacements.AsRef(), endTagContent, endTagSource);
+            }
+
+            // Insert replacement nodes
+            var insertCount = replacements.Count;
+            for (var i = 0; i < insertCount; i++)
+            {
+                parentChildren.Insert(index + i, replacements[i]);
+            }
+
+            // Merge adjacent HtmlContent nodes around the insertion point
+            MergeAdjacentHtmlContent(parentChildren, index, insertCount);
+        }
+
+        private static void AddHtmlToken(ref PooledArrayBuilder<IntermediateNode> list, string content, SourceSpan source)
+        {
+            var htmlContent = new HtmlContentIntermediateNode() { Source = source };
+            // Use the lazy factory to produce LazyIntermediateToken (matches the lowering phase output)
+            htmlContent.Children.Add(IntermediateNodeFactory.HtmlToken(content, static c => c, source));
+            list.Add(htmlContent);
+        }
+
+        private SourceSpan BuildSourceSpan(int absoluteIndex, int length)
+        {
+            var text = _sourceDocument.Text;
+            var linePosition = text.Lines.GetLinePosition(absoluteIndex);
+            var endPosition = text.Lines.GetLinePosition(absoluteIndex + length);
+            return new SourceSpan(
+                _sourceDocument.FilePath,
+                absoluteIndex,
+                linePosition.Line,
+                linePosition.Character,
+                length,
+                endPosition.Line - linePosition.Line,
+                endPosition.Character);
+        }
+
+        /// <summary>
+        /// Merges adjacent HtmlContentIntermediateNode nodes in the range [start-1, start+count].
+        /// </summary>
+        private static void MergeAdjacentHtmlContent(IntermediateNodeCollection children, int start, int count)
+        {
+            // Merge from the end of the inserted range forward
+            var endIdx = start + count;
+            if (endIdx < children.Count && endIdx > 0 &&
+                children[endIdx] is HtmlContentIntermediateNode nextHtml &&
+                children[endIdx - 1] is HtmlContentIntermediateNode prevAtEnd)
+            {
+                MergeHtmlNodes(prevAtEnd, nextHtml);
+                children.RemoveAt(endIdx);
+            }
+
+            // Merge consecutive HtmlContent within the inserted range (right to left)
+            for (var i = start + count - 1; i > start; i--)
+            {
+                if (i < children.Count && i - 1 >= 0 &&
+                    children[i] is HtmlContentIntermediateNode right &&
+                    children[i - 1] is HtmlContentIntermediateNode left)
+                {
+                    MergeHtmlNodes(left, right);
+                    children.RemoveAt(i);
+                }
+            }
+
+            // Merge with the node before the insertion point
+            if (start > 0 && start < children.Count &&
+                children[start] is HtmlContentIntermediateNode insertedHtml &&
+                children[start - 1] is HtmlContentIntermediateNode beforeHtml)
+            {
+                MergeHtmlNodes(beforeHtml, insertedHtml);
+                children.RemoveAt(start);
+            }
+        }
+
+        /// <summary>
+        /// Merges the children and source span of 'source' into 'target'.
+        /// </summary>
+        private static void MergeHtmlNodes(HtmlContentIntermediateNode target, HtmlContentIntermediateNode source)
+        {
+            foreach (var child in source.Children)
+            {
+                target.Children.Add(child);
+            }
+
+            if (target.Source is SourceSpan targetSpan && source.Source is SourceSpan sourceSpan)
+            {
+                var newLength = (sourceSpan.AbsoluteIndex + sourceSpan.Length) - targetSpan.AbsoluteIndex;
+                target.Source = new SourceSpan(
+                    targetSpan.FilePath,
+                    targetSpan.AbsoluteIndex,
+                    targetSpan.LineIndex,
+                    targetSpan.CharacterIndex,
+                    newLength,
+                    targetSpan.LineCount,
+                    targetSpan.EndCharacterIndex);
+            }
+            else if (target.Source is null && source.Source is not null)
+            {
+                target.Source = source.Source;
             }
         }
 
@@ -171,20 +364,16 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
                 {
                     var attributeStructure = DetermineAttributeStructure(htmlAttr);
 
-                    var setTagHelperProperty = new TagHelperPropertyIntermediateNode(match)
+                    if (match.Attribute.IsDirectiveAttribute)
                     {
-                        AttributeName = attributeName,
-                        AttributeStructure = attributeStructure,
-                        Source = DeterminePropertySource(htmlAttr),
-                    };
-
-                    // Copy attribute value children
-                    foreach (var valueChild in htmlAttr.Children)
-                    {
-                        setTagHelperProperty.Children.Add(valueChild);
+                        // Directive attributes (@ref, @key, @onclick, @attributes, etc.)
+                        ProcessDirectiveAttribute(tagHelperNode, htmlAttr, match, attributeStructure);
                     }
-
-                    tagHelperNode.Children.Add(setTagHelperProperty);
+                    else
+                    {
+                        // Regular bound attributes
+                        ProcessBoundAttribute(tagHelperNode, htmlAttr, match, attributeStructure);
+                    }
                 }
             }
             else
@@ -197,14 +386,126 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
                     AttributeStructure = attributeStructure,
                 };
 
-                // Copy attribute value children
-                foreach (var valueChild in htmlAttr.Children)
+                // For directive attributes (@ref, @key, etc.) that are unmatched (e.g., ClassifyAttributesOnly),
+                // the current pipeline converts HtmlAttributeValue → HtmlContent because VisitAttributeValue
+                // creates HtmlContent for pure literal values. Regular unmatched attributes keep as-is.
+                var isDirectiveAttribute = attributeName.StartsWith("@", System.StringComparison.Ordinal);
+                if (isDirectiveAttribute)
                 {
-                    addHtmlAttribute.Children.Add(valueChild);
+                    CopyAttributeValueChildren(htmlAttr, addHtmlAttribute);
+                }
+                else
+                {
+                    foreach (var valueChild in htmlAttr.Children)
+                    {
+                        addHtmlAttribute.Children.Add(valueChild);
+                    }
                 }
 
                 tagHelperNode.Children.Add(addHtmlAttribute);
             }
+        }
+
+        /// <summary>
+        /// Copies attribute value children from an HtmlAttributeIntermediateNode to a target node,
+        /// converting HTML-attribute-specific intermediate nodes to tag-helper-compatible ones.
+        /// HtmlAttributeValue → HtmlContent, CSharpExpressionAttributeValue → CSharpExpression.
+        /// </summary>
+        private static void CopyAttributeValueChildren(HtmlAttributeIntermediateNode htmlAttr, IntermediateNode target)
+        {
+            foreach (var valueChild in htmlAttr.Children)
+            {
+                if (valueChild is CSharpExpressionAttributeValueIntermediateNode exprAttrValue)
+                {
+                    // Convert CSharpExpressionAttributeValue to CSharpExpression
+                    var csharpExpr = new CSharpExpressionIntermediateNode();
+                    foreach (var inner in exprAttrValue.Children)
+                    {
+                        csharpExpr.Source = inner.Source;
+                        csharpExpr.Children.Add(inner);
+                    }
+                    target.Children.Add(csharpExpr);
+                }
+                else if (valueChild is HtmlAttributeValueIntermediateNode htmlAttrValue)
+                {
+                    // Convert HtmlAttributeValue to HtmlContent
+                    var htmlContent = new HtmlContentIntermediateNode() { Source = htmlAttrValue.Source };
+                    foreach (var inner in htmlAttrValue.Children)
+                    {
+                        htmlContent.Children.Add(inner);
+                    }
+                    target.Children.Add(htmlContent);
+                }
+                else
+                {
+                    target.Children.Add(valueChild);
+                }
+            }
+        }
+
+        private static void ProcessBoundAttribute(
+            TagHelperIntermediateNode tagHelperNode,
+            HtmlAttributeIntermediateNode htmlAttr,
+            TagHelperAttributeMatch match,
+            AttributeStructure attributeStructure)
+        {
+            var setTagHelperProperty = new TagHelperPropertyIntermediateNode(match)
+            {
+                AttributeName = htmlAttr.AttributeName,
+                AttributeStructure = attributeStructure,
+                Source = DeterminePropertySource(htmlAttr),
+            };
+
+            CopyAttributeValueChildren(htmlAttr, setTagHelperProperty);
+            tagHelperNode.Children.Add(setTagHelperProperty);
+        }
+
+        private static void ProcessDirectiveAttribute(
+            TagHelperIntermediateNode tagHelperNode,
+            HtmlAttributeIntermediateNode htmlAttr,
+            TagHelperAttributeMatch match,
+            AttributeStructure attributeStructure)
+        {
+            var attributeName = htmlAttr.AttributeName;
+
+            // Directive attribute names start with '@' — strip it for the AttributeName property
+            var strippedName = attributeName.StartsWith("@", System.StringComparison.Ordinal)
+                ? attributeName.Substring(1)
+                : attributeName;
+
+            // Check for parameter syntax (e.g., @onclick:preventDefault → parameter "preventDefault")
+            var colonIndex = strippedName.IndexOf(':');
+            var hasParameter = colonIndex >= 0;
+            var nameWithoutParameter = hasParameter ? strippedName.Substring(0, colonIndex) : strippedName;
+
+            IntermediateNode attributeNode;
+
+            if (match.IsParameterMatch && hasParameter)
+            {
+                attributeNode = new TagHelperDirectiveAttributeParameterIntermediateNode(match)
+                {
+                    AttributeName = strippedName,
+                    AttributeNameWithoutParameter = nameWithoutParameter,
+                    OriginalAttributeName = attributeName,
+                    AttributeStructure = attributeStructure,
+                    Source = DeterminePropertySource(htmlAttr),
+                    OriginalAttributeSpan = htmlAttr.Source,
+                };
+            }
+            else
+            {
+                attributeNode = new TagHelperDirectiveAttributeIntermediateNode(match)
+                {
+                    AttributeName = strippedName,
+                    OriginalAttributeName = attributeName,
+                    AttributeStructure = attributeStructure,
+                    Source = DeterminePropertySource(htmlAttr),
+                    OriginalAttributeSpan = htmlAttr.Source,
+                };
+            }
+
+            CopyAttributeValueChildren(htmlAttr, attributeNode);
+            tagHelperNode.Children.Add(attributeNode);
         }
 
         private static AttributeStructure DetermineAttributeStructure(HtmlAttributeIntermediateNode htmlAttr)
@@ -221,7 +522,9 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
             }
             else if (prefix.EndsWith("=", System.StringComparison.Ordinal))
             {
-                return AttributeStructure.NoQuotes;
+                // NoQuotes is normalized to DoubleQuotes for tag helper attributes.
+                // This matches the behavior of the syntax tree rewrite (TagHelperBlockRewriter).
+                return AttributeStructure.DoubleQuotes;
             }
             else
             {

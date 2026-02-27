@@ -644,14 +644,17 @@ internal class TestRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase, IR
                 Source = BuildSourceSpanFromNode(node),
                 TagName = node.StartTag?.Name.Content ?? node.EndTag?.Name.Content ?? string.Empty,
                 TagMode = GetTagMode(node),
+                StartTagSource = node.StartTag != null ? BuildSourceSpanFromNode(node.StartTag) : null,
+                EndTagSource = node.EndTag != null ? BuildSourceSpanFromNode(node.EndTag) : null,
             };
 
             _builder.Push(element);
+            var wasInsideMarkupElement = _insideMarkupElement;
             _insideMarkupElement = true;
 
             base.VisitMarkupElement(node);
 
-            _insideMarkupElement = false;
+            _insideMarkupElement = wasInsideMarkupElement;
             _builder.Pop();
         }
 
@@ -695,7 +698,7 @@ internal class TestRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase, IR
 
             if (_insideMarkupElement)
             {
-                // When inside a MarkupElementIntermediateNode, skip the end tag (it's already tracked by the element node)
+                // When inside a MarkupElementIntermediateNode, skip the end tag
                 return;
             }
 
@@ -710,11 +713,6 @@ internal class TestRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase, IR
             if (node.StartTag != null && node.StartTag.IsSelfClosing())
             {
                 return TagMode.SelfClosing;
-            }
-
-            if (node.EndTag == null && node.StartTag != null && node.StartTag.IsVoidElement())
-            {
-                return TagMode.StartTagOnly;
             }
 
             return TagMode.StartTagAndEndTag;
@@ -799,6 +797,21 @@ internal class TestRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase, IR
                     base.VisitMarkupMinimizedAttributeBlock(node);
                     return;
                 }
+            }
+
+            if (_insideMarkupElement)
+            {
+                // When inside a MarkupElementIntermediateNode, create a structured attribute node
+                var name = node.Name.GetContent();
+                _builder.Push(new HtmlAttributeIntermediateNode()
+                {
+                    AttributeName = name,
+                    Prefix = name,
+                    Suffix = string.Empty,
+                    Source = BuildSourceSpanFromNode(node),
+                });
+                _builder.Pop();
+                return;
             }
 
             // Minimized attributes are just html content.
