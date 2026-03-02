@@ -38,23 +38,20 @@ public sealed class MarkupElementIntermediateNode : IntermediateNode
     public TagMode TagMode { get; set; }
 
     /// <summary>
-    /// Index in <see cref="IntermediateNode.Children"/> where the body content starts.
-    /// Children before this index are start tag tokens (tag text and attributes).
-    /// This is set during lowering and used by the IR rewrite phase to extract body content.
+    /// The flat intermediate nodes for the start tag, in legacy pipeline format.
+    /// Contains the same representation as the legacy pipeline would produce
+    /// (e.g., HtmlContent for "&lt;tagname", merged attribute tokens, HtmlContent for "&gt;").
+    /// Used when flattening non-tag-helper elements back to HtmlContent.
     /// </summary>
-    public int BodyStartIndex { get; set; }
+    public IntermediateNodeCollection FlatStartTag { get => field ??= []; }
 
     /// <summary>
-    /// The source span of the start tag (e.g., &lt;tagname attr="value"&gt;).
-    /// Used to reconstruct tag text when flattening non-tag-helper elements.
+    /// The flat intermediate nodes for the end tag, in legacy pipeline format.
+    /// Contains the same representation as the legacy pipeline would produce
+    /// (e.g., HtmlContent for "&lt;/tagname&gt;").
+    /// Used when flattening non-tag-helper elements back to HtmlContent.
     /// </summary>
-    public SourceSpan? StartTagSource { get; set; }
-
-    /// <summary>
-    /// The source span of the end tag (e.g., &lt;/tagname&gt;).
-    /// Used to reconstruct tag text when flattening non-tag-helper elements.
-    /// </summary>
-    public SourceSpan? EndTagSource { get; set; }
+    public IntermediateNodeCollection FlatEndTag { get => field ??= []; }
 
     public override void Accept(IntermediateNodeVisitor visitor)
     {

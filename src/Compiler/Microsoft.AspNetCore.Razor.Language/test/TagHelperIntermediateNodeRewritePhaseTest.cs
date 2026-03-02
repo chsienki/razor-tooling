@@ -127,6 +127,29 @@ public class TagHelperIntermediateNodeRewritePhaseTest : RazorProjectEngineTestB
     }
 
     [Fact]
+    public void TagHelperRewrite_Legacy_NonTagHelperElementsWithAttributes_ProducesIdenticalIR()
+    {
+        // Arrange - only <input> is a tag helper; <div> with attributes is not
+        var tagHelper = CreateTagHelperDescriptor(
+            tagName: "input",
+            typeName: "InputTagHelper",
+            assemblyName: "TestAssembly");
+
+        var content = @"@addTagHelper *, TestAssembly
+<div class=""container"" id=""main"">
+    <input value='Hello' />
+</div>
+<span style=""color:red"">text</span>";
+
+        // Act
+        var currentIR = RunCurrentPipeline(content, RazorFileKind.Legacy, [tagHelper]);
+        var newIR = RunNewPipeline(content, RazorFileKind.Legacy, [tagHelper]);
+
+        // Assert
+        Assert.Equal(currentIR, newIR);
+    }
+
+    [Fact]
     public void TagHelperRewrite_Legacy_NestedTagHelpers_ProducesIdenticalIR()
     {
         // Arrange - nested tag helpers: p, form, and input with bound attribute

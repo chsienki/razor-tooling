@@ -34,7 +34,7 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
         var binder = tagHelperContext.GetBinder();
         var prefix = tagHelperContext.Prefix;
 
-        var rewriter = new TagHelperRewriter(binder, prefix, codeDocument.FileKind.IsComponent(), codeDocument.Source);
+        var rewriter = new TagHelperRewriter(binder, prefix, codeDocument.FileKind.IsComponent());
         rewriter.Visit(documentNode);
 
         return codeDocument;
@@ -45,14 +45,12 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
         private readonly TagHelperBinder _binder;
         private readonly string _prefix;
         private readonly bool _isComponent;
-        private readonly RazorSourceDocument _sourceDocument;
 
-        public TagHelperRewriter(TagHelperBinder binder, string prefix, bool isComponent, RazorSourceDocument sourceDocument)
+        public TagHelperRewriter(TagHelperBinder binder, string prefix, bool isComponent)
         {
             _binder = binder;
             _prefix = prefix;
             _isComponent = isComponent;
-            _sourceDocument = sourceDocument;
         }
 
         public override void VisitMarkupElement(MarkupElementIntermediateNode node)
@@ -125,9 +123,9 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
         /// <summary>
         /// For legacy files, non-tag-helper elements need to be flattened back to HtmlContent
         /// since the legacy pipeline doesn't produce MarkupElementIntermediateNode for regular elements.
-        /// Uses source spans stored on the element to reconstruct start/end tag text tokens.
+        /// Uses flat tag tokens captured during lowering (same representation as legacy pipeline).
         /// </summary>
-        private void FlattenMarkupElement(MarkupElementIntermediateNode node, IntermediateNode parent)
+        private static void FlattenMarkupElement(MarkupElementIntermediateNode node, IntermediateNode parent)
         {
             if (parent is null)
             {
@@ -144,48 +142,13 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
             // Remove the MarkupElement node
             parentChildren.RemoveAt(index);
 
-            // Build the replacement children list: start tag tokens, body, end tag tokens
+            // Build the replacement: flat start tag tokens, body, flat end tag tokens
             using var replacements = new PooledArrayBuilder<IntermediateNode>();
-            var sourceText = _sourceDocument.Text;
 
-            // Start tag tokens
-            if (node.StartTagSource is SourceSpan startTagSpan)
+            // Flat start tag tokens (captured from legacy pipeline during lowering)
+            foreach (var child in node.FlatStartTag)
             {
-                var tagName = node.TagName ?? string.Empty;
-                var tagOpenLength = 1 + tagName.Length; // "<" + tagName
-
-                // Token for "<tagname"
-                var tagOpenSource = BuildSourceSpan(startTagSpan.AbsoluteIndex, tagOpenLength);
-                var tagOpenContent = sourceText.GetSubText(
-                    new Microsoft.CodeAnalysis.Text.TextSpan(startTagSpan.AbsoluteIndex, tagOpenLength)).ToString();
-                AddHtmlToken(ref replacements.AsRef(), tagOpenContent, tagOpenSource);
-
-                // Token for close bracket (">" or "/>")
-                var startTagFullText = sourceText.GetSubText(
-                    new Microsoft.CodeAnalysis.Text.TextSpan(startTagSpan.AbsoluteIndex, startTagSpan.Length)).ToString();
-                var closeBracketLocalPos = startTagFullText.LastIndexOf('>');
-                if (closeBracketLocalPos >= 0)
-                {
-                    // Include forward slash if self-closing (e.g., "/>")
-                    var bracketLocalStart = closeBracketLocalPos;
-                    if (bracketLocalStart > 0 && startTagFullText[bracketLocalStart - 1] == '/')
-                    {
-                        bracketLocalStart--;
-                    }
-
-                    // Handle whitespace before "/> " (e.g., " />")
-                    if (bracketLocalStart > 0 && startTagFullText[bracketLocalStart - 1] == ' ')
-                    {
-                        bracketLocalStart--;
-                    }
-
-                    var closeBracketAbsoluteStart = startTagSpan.AbsoluteIndex + bracketLocalStart;
-                    var closeBracketLength = startTagSpan.Length - bracketLocalStart;
-                    var closeBracketSource = BuildSourceSpan(closeBracketAbsoluteStart, closeBracketLength);
-                    var closeBracketContent = sourceText.GetSubText(
-                        new Microsoft.CodeAnalysis.Text.TextSpan(closeBracketAbsoluteStart, closeBracketLength)).ToString();
-                    AddHtmlToken(ref replacements.AsRef(), closeBracketContent, closeBracketSource);
-                }
+                replacements.Add(child);
             }
 
             // Body children (preserve as-is)
@@ -194,13 +157,10 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
                 replacements.Add(child);
             }
 
-            // End tag tokens
-            if (node.EndTagSource is SourceSpan endTagSpan)
+            // Flat end tag tokens (captured from legacy pipeline during lowering)
+            foreach (var child in node.FlatEndTag)
             {
-                var endTagContent = sourceText.GetSubText(
-                    new Microsoft.CodeAnalysis.Text.TextSpan(endTagSpan.AbsoluteIndex, endTagSpan.Length)).ToString();
-                var endTagSource = BuildSourceSpan(endTagSpan.AbsoluteIndex, endTagSpan.Length);
-                AddHtmlToken(ref replacements.AsRef(), endTagContent, endTagSource);
+                replacements.Add(child);
             }
 
             // Insert replacement nodes
@@ -212,29 +172,6 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
 
             // Merge adjacent HtmlContent nodes around the insertion point
             MergeAdjacentHtmlContent(parentChildren, index, insertCount);
-        }
-
-        private static void AddHtmlToken(ref PooledArrayBuilder<IntermediateNode> list, string content, SourceSpan source)
-        {
-            var htmlContent = new HtmlContentIntermediateNode() { Source = source };
-            // Use the lazy factory to produce LazyIntermediateToken (matches the lowering phase output)
-            htmlContent.Children.Add(IntermediateNodeFactory.HtmlToken(content, static c => c, source));
-            list.Add(htmlContent);
-        }
-
-        private SourceSpan BuildSourceSpan(int absoluteIndex, int length)
-        {
-            var text = _sourceDocument.Text;
-            var linePosition = text.Lines.GetLinePosition(absoluteIndex);
-            var endPosition = text.Lines.GetLinePosition(absoluteIndex + length);
-            return new SourceSpan(
-                _sourceDocument.FilePath,
-                absoluteIndex,
-                linePosition.Line,
-                linePosition.Character,
-                length,
-                endPosition.Line - linePosition.Line,
-                endPosition.Character);
         }
 
         /// <summary>

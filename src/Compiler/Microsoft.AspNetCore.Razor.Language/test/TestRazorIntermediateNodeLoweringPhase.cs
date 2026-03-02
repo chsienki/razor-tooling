@@ -644,8 +644,6 @@ internal class TestRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase, IR
                 Source = BuildSourceSpanFromNode(node),
                 TagName = node.StartTag?.Name.Content ?? node.EndTag?.Name.Content ?? string.Empty,
                 TagMode = GetTagMode(node),
-                StartTagSource = node.StartTag != null ? BuildSourceSpanFromNode(node.StartTag) : null,
-                EndTagSource = node.EndTag != null ? BuildSourceSpanFromNode(node.EndTag) : null,
             };
 
             _builder.Push(element);
@@ -667,7 +665,28 @@ internal class TestRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase, IR
 
             if (_insideMarkupElement)
             {
-                // When inside a MarkupElementIntermediateNode, process attributes in a structured way
+                var element = (MarkupElementIntermediateNode)_builder.Current;
+
+                // Capture flat start tag tokens by visiting LegacyChildren in legacy mode.
+                // This produces the exact same representation as the legacy pipeline.
+                var captureNode = new DocumentIntermediateNode();
+                _builder.Push(captureNode);
+                _insideMarkupElement = false;
+                foreach (var child in node.LegacyChildren)
+                {
+                    Visit(child);
+                }
+                _insideMarkupElement = true;
+                _builder.Pop();
+                // Remove the capture node from element's children (Push adds it)
+                element.Children.RemoveAt(element.Children.Count - 1);
+                // Move captured flat tokens to element
+                foreach (var child in captureNode.Children)
+                {
+                    element.FlatStartTag.Add(child);
+                }
+
+                // Also create structured attributes for tag helper matching
                 foreach (var block in node.Attributes)
                 {
                     if (block is MarkupAttributeBlockSyntax attribute)
@@ -698,7 +717,23 @@ internal class TestRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase, IR
 
             if (_insideMarkupElement)
             {
-                // When inside a MarkupElementIntermediateNode, skip the end tag
+                var element = (MarkupElementIntermediateNode)_builder.Current;
+
+                // Capture flat end tag tokens by visiting LegacyChildren in legacy mode
+                var captureNode = new DocumentIntermediateNode();
+                _builder.Push(captureNode);
+                _insideMarkupElement = false;
+                foreach (var child in node.LegacyChildren)
+                {
+                    Visit(child);
+                }
+                _insideMarkupElement = true;
+                _builder.Pop();
+                element.Children.RemoveAt(element.Children.Count - 1);
+                foreach (var child in captureNode.Children)
+                {
+                    element.FlatEndTag.Add(child);
+                }
                 return;
             }
 
