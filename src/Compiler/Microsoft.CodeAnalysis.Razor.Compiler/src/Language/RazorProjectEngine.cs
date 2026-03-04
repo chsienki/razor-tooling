@@ -337,6 +337,7 @@ public sealed class RazorProjectEngine
         phases.Add(new DefaultRazorTagHelperContextDiscoveryPhase());
         phases.Add(new DefaultRazorTagHelperRewritePhase());
         phases.Add(new DefaultRazorIntermediateNodeLoweringPhase());
+        phases.Add(new TagHelperIntermediateNodeRewritePhase());
         phases.Add(new DefaultRazorDocumentClassifierPhase());
         phases.Add(new DefaultRazorDirectiveClassifierPhase());
         phases.Add(new DefaultRazorOptimizationPhase());

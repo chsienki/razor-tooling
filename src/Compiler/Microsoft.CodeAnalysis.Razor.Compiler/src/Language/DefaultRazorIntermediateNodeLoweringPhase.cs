@@ -642,7 +642,7 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
             var element = new MarkupElementIntermediateNode()
             {
                 Source = BuildSourceSpanFromNode(node),
-                TagName = node.StartTag?.Name.Content ?? node.EndTag?.Name.Content ?? string.Empty,
+                TagName = node.StartTag?.GetTagNameWithOptionalBang() ?? node.EndTag?.Name.Content ?? string.Empty,
                 TagMode = GetTagMode(node),
             };
 

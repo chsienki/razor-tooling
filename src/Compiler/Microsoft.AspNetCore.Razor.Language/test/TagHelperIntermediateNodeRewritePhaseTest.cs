@@ -459,9 +459,9 @@ public class TagHelperIntermediateNodeRewritePhaseTest : RazorProjectEngineTestB
 
     private string RunCurrentPipeline(string content, RazorFileKind fileKind, TagHelperCollection tagHelpers)
     {
-        // Standard pipeline: Parse → Discovery → Rewrite → Lower
+        // Standard pipeline: Parse → Discovery → Rewrite → Lower → IR Rewrite
         var codeDocument = ProjectEngine.CreateCodeDocument(content, fileKind, tagHelpers);
-        codeDocument = ProjectEngine.ExecutePhasesThrough<IRazorIntermediateNodeLoweringPhase>(codeDocument);
+        codeDocument = ProjectEngine.ExecutePhasesThrough<TagHelperIntermediateNodeRewritePhase>(codeDocument);
 
         var documentNode = codeDocument.GetDocumentNode();
         Assert.NotNull(documentNode);
@@ -491,7 +491,7 @@ public class TagHelperIntermediateNodeRewritePhaseTest : RazorProjectEngineTestB
                 }
             }
 
-            // Find and save the discovery phase, then remove it
+            // Move discovery phase after lowering, before IR rewrite
             IRazorEnginePhase discoveryPhase = null;
             for (var i = builder.Phases.Count - 1; i >= 0; i--)
             {
@@ -503,18 +503,14 @@ public class TagHelperIntermediateNodeRewritePhaseTest : RazorProjectEngineTestB
                 }
             }
 
-            // Replace the standard lowering phase with our test version
+            // Insert discovery right before the IR rewrite phase
             for (var i = 0; i < builder.Phases.Count; i++)
             {
-                if (builder.Phases[i] is IRazorIntermediateNodeLoweringPhase)
+                if (builder.Phases[i] is TagHelperIntermediateNodeRewritePhase)
                 {
-                    builder.Phases[i] = new TestRazorIntermediateNodeLoweringPhase();
-
-                    // Insert discovery phase right after lowering, then IR rewrite phase after that
                     if (discoveryPhase != null)
                     {
-                        builder.Phases.Insert(i + 1, discoveryPhase);
-                        builder.Phases.Insert(i + 2, new TagHelperIntermediateNodeRewritePhase());
+                        builder.Phases.Insert(i, discoveryPhase);
                     }
 
                     break;

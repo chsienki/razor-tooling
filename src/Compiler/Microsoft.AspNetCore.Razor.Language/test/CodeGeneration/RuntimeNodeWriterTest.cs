@@ -479,7 +479,7 @@ WriteLiteral(@""{1}"");
         var codeDocument = ProjectEngine.CreateCodeDocument(source);
         var processor = CreateCodeDocumentProcessor(codeDocument);
         var documentNode = processor.GetDocumentNode();
-        var node = documentNode.Children.OfType<HtmlAttributeIntermediateNode>().Single();
+        var node = documentNode.FindDescendantNodes<HtmlAttributeIntermediateNode>().Single();
 
         using var context = TestCodeRenderingContext.CreateRuntime();
 
@@ -508,7 +508,7 @@ EndWriteAttribute();
         var codeDocument = ProjectEngine.CreateCodeDocument(source);
         var processor = CreateCodeDocumentProcessor(codeDocument);
         var documentNode = processor.GetDocumentNode();
-        var node = documentNode.Children.OfType<HtmlAttributeIntermediateNode>().Single().Children[0] as HtmlAttributeValueIntermediateNode;
+        var node = documentNode.FindDescendantNodes<HtmlAttributeIntermediateNode>().Single().Children[0] as HtmlAttributeValueIntermediateNode;
 
         using var context = TestCodeRenderingContext.CreateRuntime();
 
@@ -534,7 +534,7 @@ EndWriteAttribute();
         var codeDocument = ProjectEngine.CreateCodeDocument(source);
         var processor = CreateCodeDocumentProcessor(codeDocument);
         var documentNode = processor.GetDocumentNode();
-        var node = documentNode.Children.OfType<HtmlAttributeIntermediateNode>().Single().Children[1] as CSharpExpressionAttributeValueIntermediateNode;
+        var node = documentNode.FindDescendantNodes<HtmlAttributeIntermediateNode>().Single().Children[1] as CSharpExpressionAttributeValueIntermediateNode;
 
         using var context = TestCodeRenderingContext.CreateRuntime();
 
@@ -569,7 +569,7 @@ false
         var codeDocument = ProjectEngine.CreateCodeDocument(source);
         var processor = CreateCodeDocumentProcessor(codeDocument);
         var documentNode = processor.GetDocumentNode();
-        var node = documentNode.Children.OfType<HtmlAttributeIntermediateNode>().Single().Children[1] as CSharpCodeAttributeValueIntermediateNode;
+        var node = documentNode.FindDescendantNodes<HtmlAttributeIntermediateNode>().Single().Children[1] as CSharpCodeAttributeValueIntermediateNode;
 
         using var context = TestCodeRenderingContext.CreateRuntime(source: source);
 

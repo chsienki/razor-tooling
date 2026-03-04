@@ -18,23 +18,38 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
 {
     protected override RazorCodeDocument ExecuteCore(RazorCodeDocument codeDocument, CancellationToken cancellationToken)
     {
-        var tagHelperContext = codeDocument.GetTagHelperContext();
-        if (tagHelperContext is null || tagHelperContext.TagHelpers is [])
-        {
-            return codeDocument;
-        }
-
         var documentNode = codeDocument.GetDocumentNode();
         if (documentNode is null)
         {
             return codeDocument;
         }
 
-        var binder = tagHelperContext.GetBinder();
-        var prefix = tagHelperContext.Prefix;
+        var syntaxTree = codeDocument.GetSyntaxTree();
+        var isComponent = codeDocument.FileKind.IsComponent();
+        // When AllowComponentFileKind is true, the lowering phase used ComponentFileKindVisitor
+        // which creates MarkupElementIntermediateNode that doesn't need flattening.
+        // When false (e.g. Version_2_1), LegacyFileKindVisitor was used even for .razor files,
+        // and those MarkupElementIntermediateNodes need flattening.
+        var usedComponentVisitor = isComponent && syntaxTree?.Options.AllowComponentFileKind == true;
 
-        var rewriter = new TagHelperRewriter(binder, prefix, codeDocument.FileKind.IsComponent());
+        TagHelperBinder binder = null;
+        string prefix = null;
+
+        var tagHelperContext = codeDocument.GetTagHelperContext();
+        if (tagHelperContext is not null && tagHelperContext.TagHelpers is not [])
+        {
+            binder = tagHelperContext.GetBinder();
+            prefix = tagHelperContext.Prefix;
+        }
+        else if (usedComponentVisitor)
+        {
+            // Component files lowered with ComponentFileKindVisitor and no tag helpers — nothing to do
+            return codeDocument;
+        }
+
+        var rewriter = new TagHelperRewriter(binder, prefix, usedComponentVisitor);
         rewriter.Visit(documentNode);
+        rewriter.FlattenDeferredNodes();
 
         return codeDocument;
     }
@@ -44,6 +59,7 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
         private readonly TagHelperBinder _binder;
         private readonly string _prefix;
         private readonly bool _isComponent;
+        private readonly List<(MarkupElementIntermediateNode node, IntermediateNode parent)> _nodesToFlatten = new();
 
         public TagHelperRewriter(TagHelperBinder binder, string prefix, bool isComponent)
         {
@@ -52,19 +68,65 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
             _isComponent = isComponent;
         }
 
+        public void FlattenDeferredNodes()
+        {
+            if (_nodesToFlatten.Count == 0)
+            {
+                return;
+            }
+
+            // Build a set of all nodes to flatten so we can detect nesting
+            var nodesToFlattenSet = new HashSet<MarkupElementIntermediateNode>();
+            foreach (var (node, _) in _nodesToFlatten)
+            {
+                nodesToFlattenSet.Add(node);
+            }
+
+            // Process in DFS order (children before parents in the list).
+            // Skip nodes whose parent is also in the set — their content will be
+            // recursively collected when the parent is flattened.
+            foreach (var (node, parent) in _nodesToFlatten)
+            {
+                if (parent is MarkupElementIntermediateNode parentElement && nodesToFlattenSet.Contains(parentElement))
+                {
+                    continue;
+                }
+
+                FlattenMarkupElement(node, parent, nodesToFlattenSet);
+            }
+        }
+
         public override void VisitMarkupElement(MarkupElementIntermediateNode node)
         {
             // First, visit children so we process nested elements bottom-up
             base.VisitDefault(node);
+
+            // Orphan end tags (e.g., </body> without a matching start tag) should be flattened
+            if (node.FlatStartTag.Count == 0 && node.FlatEndTag.Count > 0)
+            {
+                if (!_isComponent)
+                {
+                    _nodesToFlatten.Add((node, Parent));
+                }
+
+                return;
+            }
 
             var tagName = node.TagName;
             if (string.IsNullOrEmpty(tagName))
             {
                 if (!_isComponent)
                 {
-                    FlattenMarkupElement(node, Parent);
+                    _nodesToFlatten.Add((node, Parent));
                 }
 
+                return;
+            }
+
+            // If no binder (legacy file with no tag helpers), just flatten
+            if (_binder is null)
+            {
+                _nodesToFlatten.Add((node, Parent));
                 return;
             }
 
@@ -102,7 +164,7 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
                 // For legacy files, flatten non-matched elements back to HtmlContent
                 if (!_isComponent)
                 {
-                    FlattenMarkupElement(node, Parent);
+                    _nodesToFlatten.Add((node, Parent));
                 }
 
                 return;
@@ -123,8 +185,9 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
         /// For legacy files, non-tag-helper elements need to be flattened back to HtmlContent
         /// since the legacy pipeline doesn't produce MarkupElementIntermediateNode for regular elements.
         /// Uses flat tag tokens captured during lowering (same representation as legacy pipeline).
+        /// Handles nested MarkupElements by recursively collecting their content.
         /// </summary>
-        private static void FlattenMarkupElement(MarkupElementIntermediateNode node, IntermediateNode parent)
+        private static void FlattenMarkupElement(MarkupElementIntermediateNode node, IntermediateNode parent, HashSet<MarkupElementIntermediateNode> nodesToFlattenSet)
         {
             if (parent is null)
             {
@@ -141,26 +204,9 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
             // Remove the MarkupElement node
             parentChildren.RemoveAt(index);
 
-            // Build the replacement: flat start tag tokens, body, flat end tag tokens
-            using var replacements = new PooledArrayBuilder<IntermediateNode>();
-
-            // Flat start tag tokens (captured from legacy pipeline during lowering)
-            foreach (var child in node.FlatStartTag)
-            {
-                replacements.Add(child);
-            }
-
-            // Body children (preserve as-is)
-            foreach (var child in node.Body)
-            {
-                replacements.Add(child);
-            }
-
-            // Flat end tag tokens (captured from legacy pipeline during lowering)
-            foreach (var child in node.FlatEndTag)
-            {
-                replacements.Add(child);
-            }
+            // Build the replacement using recursive content collection
+            var replacements = new List<IntermediateNode>();
+            CollectFlattenedContent(node, replacements, nodesToFlattenSet);
 
             // Insert replacement nodes
             var insertCount = replacements.Count;
@@ -174,6 +220,39 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
         }
 
         /// <summary>
+        /// Recursively collects the flattened content from a MarkupElementIntermediateNode.
+        /// For nested MarkupElements that are also in the flatten set, recurses into them
+        /// instead of adding them as-is (which would leave MarkupElementIntermediateNode in the tree).
+        /// </summary>
+        private static void CollectFlattenedContent(MarkupElementIntermediateNode node, List<IntermediateNode> result, HashSet<MarkupElementIntermediateNode> nodesToFlattenSet)
+        {
+            // Flat start tag tokens
+            foreach (var child in node.FlatStartTag)
+            {
+                result.Add(child);
+            }
+
+            // Body children — recurse into nested MarkupElements that need flattening
+            foreach (var child in node.Body)
+            {
+                if (child is MarkupElementIntermediateNode nestedElement && nodesToFlattenSet.Contains(nestedElement))
+                {
+                    CollectFlattenedContent(nestedElement, result, nodesToFlattenSet);
+                }
+                else
+                {
+                    result.Add(child);
+                }
+            }
+
+            // Flat end tag tokens
+            foreach (var child in node.FlatEndTag)
+            {
+                result.Add(child);
+            }
+        }
+
+        /// <summary>
         /// Merges adjacent HtmlContentIntermediateNode nodes in the range [start-1, start+count].
         /// </summary>
         private static void MergeAdjacentHtmlContent(IntermediateNodeCollection children, int start, int count)
@@ -182,7 +261,8 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
             var endIdx = start + count;
             if (endIdx < children.Count && endIdx > 0 &&
                 children[endIdx] is HtmlContentIntermediateNode nextHtml &&
-                children[endIdx - 1] is HtmlContentIntermediateNode prevAtEnd)
+                children[endIdx - 1] is HtmlContentIntermediateNode prevAtEnd &&
+                AreSpansContiguous(prevAtEnd, nextHtml))
             {
                 MergeHtmlNodes(prevAtEnd, nextHtml);
                 children.RemoveAt(endIdx);
@@ -193,7 +273,8 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
             {
                 if (i < children.Count && i - 1 >= 0 &&
                     children[i] is HtmlContentIntermediateNode right &&
-                    children[i - 1] is HtmlContentIntermediateNode left)
+                    children[i - 1] is HtmlContentIntermediateNode left &&
+                    AreSpansContiguous(left, right))
                 {
                     MergeHtmlNodes(left, right);
                     children.RemoveAt(i);
@@ -203,11 +284,32 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
             // Merge with the node before the insertion point
             if (start > 0 && start < children.Count &&
                 children[start] is HtmlContentIntermediateNode insertedHtml &&
-                children[start - 1] is HtmlContentIntermediateNode beforeHtml)
+                children[start - 1] is HtmlContentIntermediateNode beforeHtml &&
+                AreSpansContiguous(beforeHtml, insertedHtml))
             {
                 MergeHtmlNodes(beforeHtml, insertedHtml);
                 children.RemoveAt(start);
             }
+        }
+
+        /// <summary>
+        /// Checks whether two HtmlContent nodes have contiguous source spans,
+        /// matching the merge logic in DefaultRazorIntermediateNodeLoweringPhase.VisitHtmlContent.
+        /// </summary>
+        private static bool AreSpansContiguous(HtmlContentIntermediateNode left, HtmlContentIntermediateNode right)
+        {
+            if (left.Source is null && right.Source is null)
+            {
+                return true;
+            }
+
+            if (left.Source is SourceSpan leftSpan && right.Source is SourceSpan rightSpan)
+            {
+                return leftSpan.FilePath == rightSpan.FilePath &&
+                       leftSpan.AbsoluteIndex + leftSpan.Length == rightSpan.AbsoluteIndex;
+            }
+
+            return false;
         }
 
         /// <summary>
