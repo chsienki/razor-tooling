@@ -771,7 +771,7 @@ internal class TestRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase, IR
             var prefix = (MarkupTextLiteralSyntax)SyntaxFactory.MarkupTextLiteral(prefixTokens).Green.CreateRed(node, position);
 
             var name = node.Name.GetContent();
-            if (!_options.AllowConditionalDataDashAttributes && name.StartsWith("data-", StringComparison.OrdinalIgnoreCase))
+            if (!_insideMarkupElement && !_options.AllowConditionalDataDashAttributes && name.StartsWith("data-", StringComparison.OrdinalIgnoreCase))
             {
                 Visit(prefix);
                 Visit(node.Value);

@@ -249,8 +249,9 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
                 tagName = tagName.Substring(_prefix.Length);
             }
 
-            // Use TagMode from the MarkupElementIntermediateNode (set during lowering)
-            var tagMode = element.TagMode;
+            // Use TagMode from the MarkupElementIntermediateNode (set during lowering),
+            // but override based on TagStructure from the tag helper descriptors.
+            var tagMode = GetTagMode(element, binding);
 
             var tagHelperNode = new TagHelperIntermediateNode()
             {
@@ -277,18 +278,44 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
             {
                 if (child is HtmlAttributeIntermediateNode htmlAttr)
                 {
-                    ProcessAttribute(tagHelperNode, htmlAttr, tagHelpers, renderedBoundAttributeNames);
+                    ProcessAttribute(tagHelperNode, htmlAttr, tagHelpers, renderedBoundAttributeNames, _isComponent);
                 }
             }
 
             return tagHelperNode;
         }
 
+        /// <summary>
+        /// Determines the TagMode for a tag helper node, mirroring the logic in TagHelperBlockRewriter.GetTagMode.
+        /// Checks TagStructure.WithoutEndTag from descriptors, which overrides the syntax-based TagMode.
+        /// </summary>
+        private static TagMode GetTagMode(MarkupElementIntermediateNode element, TagHelperBinding binding)
+        {
+            if (element.TagMode == TagMode.SelfClosing)
+            {
+                return TagMode.SelfClosing;
+            }
+
+            foreach (var boundRulesInfo in binding.AllBoundRules)
+            {
+                foreach (var rule in boundRulesInfo.Rules)
+                {
+                    if (rule.TagStructure == TagStructure.WithoutEndTag)
+                    {
+                        return TagMode.StartTagOnly;
+                    }
+                }
+            }
+
+            return element.TagMode;
+        }
+
         private static void ProcessAttribute(
             TagHelperIntermediateNode tagHelperNode,
             HtmlAttributeIntermediateNode htmlAttr,
             TagHelperCollection tagHelpers,
-            HashSet<string> renderedBoundAttributeNames)
+            HashSet<string> renderedBoundAttributeNames,
+            bool isComponent)
         {
             var attributeName = htmlAttr.AttributeName;
 
@@ -323,17 +350,21 @@ internal class TagHelperIntermediateNodeRewritePhase : RazorEnginePhaseBase
                     AttributeStructure = attributeStructure,
                 };
 
-                // For directive attributes (@ref, @key, etc.) that are unmatched (e.g., ClassifyAttributesOnly),
-                // the current pipeline converts HtmlAttributeValue → HtmlContent because VisitAttributeValue
-                // creates HtmlContent for pure literal values. Regular unmatched attributes keep as-is.
-                var isDirectiveAttribute = attributeName.StartsWith("@", System.StringComparison.Ordinal);
-                if (isDirectiveAttribute)
+                // For components, convert HtmlAttributeValue → HtmlContent to match the format
+                // produced by ComponentFileKindVisitor.VisitMarkupTagHelperAttribute.
+                // For legacy, preserve children as-is (LegacyFileKindVisitor keeps HtmlAttributeValue).
+                foreach (var valueChild in htmlAttr.Children)
                 {
-                    CopyAttributeValueChildren(htmlAttr, addHtmlAttribute);
-                }
-                else
-                {
-                    foreach (var valueChild in htmlAttr.Children)
+                    if (isComponent && valueChild is HtmlAttributeValueIntermediateNode htmlAttrValue)
+                    {
+                        var htmlContent = new HtmlContentIntermediateNode() { Source = htmlAttrValue.Source };
+                        foreach (var inner in htmlAttrValue.Children)
+                        {
+                            htmlContent.Children.Add(inner);
+                        }
+                        addHtmlAttribute.Children.Add(htmlContent);
+                    }
+                    else
                     {
                         addHtmlAttribute.Children.Add(valueChild);
                     }

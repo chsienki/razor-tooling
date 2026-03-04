@@ -735,7 +735,7 @@ public class TagHelperIntermediateNodeRewritePhaseTest : RazorProjectEngineTestB
         Assert.Equal(currentCSharp, newCSharp);
     }
 
-    [Fact(Skip = "Known gap: IR rewrite produces HtmlAttributeValue for unbound component attributes instead of HtmlContent")]
+    [Fact]
     public void TagHelperRewrite_Component_MixedBoundAndUnboundAttributes_ProducesIdenticalIR()
     {
         // Arrange - mix of bound and unbound attributes on a component
@@ -912,7 +912,7 @@ public class TagHelperIntermediateNodeRewritePhaseTest : RazorProjectEngineTestB
         Assert.Equal(currentCSharp, newCSharp);
     }
 
-    [Fact(Skip = "Known gap: IR rewrite does not handle TagStructure.WithoutEndTag — produces TagMode.StartTagAndEndTag instead of TagMode.StartTagOnly")]
+    [Fact]
     public void TagHelperRewrite_Legacy_TagStructureWithoutEndTag_ProducesIdenticalIR()
     {
         // Arrange - tag helper with TagStructure.WithoutEndTag
@@ -1046,7 +1046,7 @@ public class TagHelperIntermediateNodeRewritePhaseTest : RazorProjectEngineTestB
         Assert.Equal(currentCSharp, newCSharp);
     }
 
-    [Fact(Skip = "Known gap: IR rewrite produces CSharpExpression for tag helper body expressions where current pipeline produces HtmlContent")]
+    [Fact]
     public void TagHelperRewrite_Legacy_MixedBoundUnboundWithExpressions_ProducesIdenticalIR()
     {
         // Arrange - legacy tag helper with bound + unbound attrs and expressions
