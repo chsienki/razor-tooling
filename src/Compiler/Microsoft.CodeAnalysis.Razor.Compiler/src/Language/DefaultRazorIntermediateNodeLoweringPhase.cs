@@ -622,11 +622,135 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
     {
         private readonly HashSet<string> _renderedBoundAttributeNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly string _tagHelperPrefix;
+        private bool _insideMarkupElement;
 
         public LegacyFileKindVisitor(DocumentIntermediateNode document, IntermediateNodeBuilder builder, string tagHelperPrefix, RazorParserOptions options)
             : base(document, builder, options)
         {
             _tagHelperPrefix = tagHelperPrefix;
+        }
+
+        public override void VisitMarkupElement(MarkupElementSyntax node)
+        {
+            if ((node.StartTag != null && node.StartTag.IsMarkupTransition) ||
+                (node.EndTag != null && node.EndTag.IsMarkupTransition))
+            {
+                base.VisitMarkupElement(node);
+                return;
+            }
+
+            var element = new MarkupElementIntermediateNode()
+            {
+                Source = BuildSourceSpanFromNode(node),
+                TagName = node.StartTag?.Name.Content ?? node.EndTag?.Name.Content ?? string.Empty,
+                TagMode = GetTagMode(node),
+            };
+
+            _builder.Push(element);
+            var wasInsideMarkupElement = _insideMarkupElement;
+            _insideMarkupElement = true;
+
+            base.VisitMarkupElement(node);
+
+            _insideMarkupElement = wasInsideMarkupElement;
+            _builder.Pop();
+        }
+
+        public override void VisitMarkupStartTag(MarkupStartTagSyntax node)
+        {
+            if (node.IsMarkupTransition)
+            {
+                return;
+            }
+
+            if (_insideMarkupElement)
+            {
+                var element = (MarkupElementIntermediateNode)_builder.Current;
+
+                // Capture flat start tag tokens by visiting LegacyChildren in legacy mode.
+                // This produces the exact same representation as the legacy pipeline.
+                var captureNode = new DocumentIntermediateNode();
+                _builder.Push(captureNode);
+                _insideMarkupElement = false;
+                foreach (var child in node.LegacyChildren)
+                {
+                    Visit(child);
+                }
+                _insideMarkupElement = true;
+                _builder.Pop();
+                // Remove the capture node from element's children (Push adds it)
+                element.Children.RemoveAt(element.Children.Count - 1);
+                // Move captured flat tokens to element
+                foreach (var child in captureNode.Children)
+                {
+                    element.FlatStartTag.Add(child);
+                }
+
+                // Also create structured attributes for tag helper matching
+                foreach (var block in node.Attributes)
+                {
+                    if (block is MarkupAttributeBlockSyntax attribute)
+                    {
+                        VisitMarkupAttributeBlock(attribute);
+                    }
+                    else if (block is MarkupMinimizedAttributeBlockSyntax minimized)
+                    {
+                        VisitMarkupMinimizedAttributeBlock(minimized);
+                    }
+                }
+            }
+            else
+            {
+                foreach (var child in node.LegacyChildren)
+                {
+                    Visit(child);
+                }
+            }
+        }
+
+        public override void VisitMarkupEndTag(MarkupEndTagSyntax node)
+        {
+            if (node.IsMarkupTransition)
+            {
+                return;
+            }
+
+            if (_insideMarkupElement)
+            {
+                var element = (MarkupElementIntermediateNode)_builder.Current;
+
+                // Capture flat end tag tokens by visiting LegacyChildren in legacy mode
+                var captureNode = new DocumentIntermediateNode();
+                _builder.Push(captureNode);
+                _insideMarkupElement = false;
+                foreach (var child in node.LegacyChildren)
+                {
+                    Visit(child);
+                }
+                _insideMarkupElement = true;
+                _builder.Pop();
+                element.Children.RemoveAt(element.Children.Count - 1);
+                foreach (var child in captureNode.Children)
+                {
+                    element.FlatEndTag.Add(child);
+                }
+                return;
+            }
+
+            foreach (var child in node.LegacyChildren)
+            {
+                Visit(child);
+            }
+        }
+
+        private static TagMode GetTagMode(MarkupElementSyntax node)
+        {
+            if (node.StartTag != null && node.StartTag.IsSelfClosing())
+            {
+                return TagMode.SelfClosing;
+            }
+
+            return TagMode.StartTagAndEndTag;
         }
 
         // Example
@@ -647,7 +771,7 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
             var prefix = (MarkupTextLiteralSyntax)SyntaxFactory.MarkupTextLiteral(prefixTokens).Green.CreateRed(node, position);
 
             var name = node.Name.GetContent();
-            if (!_options.AllowConditionalDataDashAttributes && name.StartsWith("data-", StringComparison.OrdinalIgnoreCase))
+            if (!_insideMarkupElement && !_options.AllowConditionalDataDashAttributes && name.StartsWith("data-", StringComparison.OrdinalIgnoreCase))
             {
                 Visit(prefix);
                 Visit(node.Value);
@@ -659,7 +783,7 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
                 {
                     var children = new ChildNodesHelper(blockSyntax.ChildNodesAndTokens());
 
-                    if (children.TryCast<MarkupLiteralAttributeValueSyntax>(out var attributeLiteralArray))
+                    if (!_insideMarkupElement && children.TryCast<MarkupLiteralAttributeValueSyntax>(out var attributeLiteralArray))
                     {
                         using var builder = new PooledArrayBuilder<SyntaxToken>();
 
@@ -708,6 +832,21 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
                     base.VisitMarkupMinimizedAttributeBlock(node);
                     return;
                 }
+            }
+
+            if (_insideMarkupElement)
+            {
+                // When inside a MarkupElementIntermediateNode, create a structured attribute node
+                var name = node.Name.GetContent();
+                _builder.Push(new HtmlAttributeIntermediateNode()
+                {
+                    AttributeName = name,
+                    Prefix = name,
+                    Suffix = string.Empty,
+                    Source = BuildSourceSpanFromNode(node),
+                });
+                _builder.Pop();
+                return;
             }
 
             // Minimized attributes are just html content.
@@ -956,34 +1095,6 @@ internal class DefaultRazorIntermediateNodeLoweringPhase : RazorEnginePhaseBase,
             }
 
             VisitHtmlContent(node);
-        }
-
-        public override void VisitMarkupStartTag(MarkupStartTagSyntax node)
-        {
-            if (node.IsMarkupTransition)
-            {
-                // No need to visit <text> tags.
-                return;
-            }
-
-            foreach (var child in node.LegacyChildren)
-            {
-                Visit(child);
-            }
-        }
-
-        public override void VisitMarkupEndTag(MarkupEndTagSyntax node)
-        {
-            if (node.IsMarkupTransition)
-            {
-                // No need to visit </text> tags.
-                return;
-            }
-
-            foreach (var child in node.LegacyChildren)
-            {
-                Visit(child);
-            }
         }
 
         private void VisitHtmlContent(SyntaxNode node)
