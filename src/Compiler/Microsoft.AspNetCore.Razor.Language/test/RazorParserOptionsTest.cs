@@ -19,6 +19,7 @@ public class RazorParserOptionsTest
         Assert.True(options.AllowRazorInAllCodeBlocks);
         Assert.True(options.AllowUsingVariableDeclarations);
         Assert.True(options.AllowNullableForgivenessOperator);
+        Assert.True(options.UseDeferredTagHelperLowering);
     }
 
     [Fact]
@@ -31,6 +32,7 @@ public class RazorParserOptionsTest
         // Assert
         Assert.True(options.AllowMinimizedBooleanTagHelperAttributes);
         Assert.True(options.AllowHtmlCommentsInTagHelpers);
+        Assert.False(options.UseDeferredTagHelperLowering);
     }
 
     [Fact]
@@ -47,5 +49,17 @@ public class RazorParserOptionsTest
         Assert.False(options.AllowRazorInAllCodeBlocks);
         Assert.False(options.AllowUsingVariableDeclarations);
         Assert.False(options.AllowNullableForgivenessOperator);
+        Assert.False(options.UseDeferredTagHelperLowering);
+    }
+
+    [Fact]
+    public void Create_ExperimentalVersion_AllowsDeferredTagHelperLowering()
+    {
+        // Arrange & Act
+        var builder = new RazorParserOptions.Builder(RazorLanguageVersion.Experimental, RazorFileKind.Legacy);
+        var options = builder.ToOptions();
+
+        // Assert
+        Assert.True(options.UseDeferredTagHelperLowering);
     }
 }

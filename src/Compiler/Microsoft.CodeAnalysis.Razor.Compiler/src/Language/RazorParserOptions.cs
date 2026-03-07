@@ -103,6 +103,9 @@ public sealed partial class RazorParserOptions
     internal bool AllowNullableForgivenessOperator
         => _flags.IsFlagSet(Flags.AllowNullableForgivenessOperator);
 
+    internal bool UseDeferredTagHelperLowering
+        => _flags.IsFlagSet(Flags.UseDeferredTagHelperLowering);
+
     public RazorParserOptions WithDirectives(params ImmutableArray<DirectiveDescriptor> value)
         => Directives.SequenceEqual(value)
             ? this
@@ -125,7 +128,8 @@ public sealed partial class RazorParserOptions
         Optional<bool> allowUsingVariableDeclarations = default,
         Optional<bool> allowConditionalDataDashAttributes = default,
         Optional<bool> allowCSharpInMarkupAttributeArea = default,
-        Optional<bool> allowNullableForgivenessOperator = default)
+        Optional<bool> allowNullableForgivenessOperator = default,
+        Optional<bool> useDeferredTagHelperLowering = default)
     {
         var flags = _flags;
 
@@ -187,6 +191,11 @@ public sealed partial class RazorParserOptions
         if (allowNullableForgivenessOperator.HasValue)
         {
             flags.UpdateFlag(Flags.AllowNullableForgivenessOperator, allowNullableForgivenessOperator.Value);
+        }
+
+        if (useDeferredTagHelperLowering.HasValue)
+        {
+            flags.UpdateFlag(Flags.UseDeferredTagHelperLowering, useDeferredTagHelperLowering.Value);
         }
 
         return flags == _flags

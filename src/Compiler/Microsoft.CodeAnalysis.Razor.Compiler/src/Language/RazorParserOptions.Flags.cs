@@ -21,7 +21,8 @@ public sealed partial class RazorParserOptions
         AllowUsingVariableDeclarations = 1 << 8,
         AllowConditionalDataDashAttributes = 1 << 9,
         AllowCSharpInMarkupAttributeArea = 1 << 10,
-        AllowNullableForgivenessOperator = 1 << 11
+        AllowNullableForgivenessOperator = 1 << 11,
+        UseDeferredTagHelperLowering = 1 << 12
     }
 
     private static Flags GetDefaultFlags(RazorLanguageVersion languageVersion, RazorFileKind fileKind)
@@ -50,6 +51,14 @@ public sealed partial class RazorParserOptions
         {
             result.SetFlag(Flags.AllowConditionalDataDashAttributes);
             result.ClearFlag(Flags.AllowCSharpInMarkupAttributeArea);
+        }
+
+        if (languageVersion >= RazorLanguageVersion.Version_3_0)
+        {
+            // Deferred tag helper lowering uses the same parse-tree output contract while
+            // sourcing rewrite candidates from initial intermediate nodes.
+            // Keep this on by default for modern language versions.
+            result.SetFlag(Flags.UseDeferredTagHelperLowering);
         }
 
         if (languageVersion >= RazorLanguageVersion.Experimental)

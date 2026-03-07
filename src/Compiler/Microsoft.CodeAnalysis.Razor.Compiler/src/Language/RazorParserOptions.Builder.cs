@@ -100,6 +100,12 @@ public sealed partial class RazorParserOptions
             set => _flags.UpdateFlag(Flags.AllowNullableForgivenessOperator, value);
         }
 
+        internal bool UseDeferredTagHelperLowering
+        {
+            get => _flags.IsFlagSet(Flags.UseDeferredTagHelperLowering);
+            set => _flags.UpdateFlag(Flags.UseDeferredTagHelperLowering, value);
+        }
+
         public RazorParserOptions ToOptions()
             => new(LanguageVersion, FileKind, Directives, CSharpParseOptions, _flags);
     }
