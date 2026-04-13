@@ -115,7 +115,7 @@ internal static class TagHelperIntermediateNodeRewriter
                         if (fullContent.Contains('='))
                         {
                             // This content contains attributes - parse and create proper attribute nodes
-                            ParseAndAddAttributes(node, fullContent);
+                            ParseAndAddAttributes(node, fullContent, htmlContent.Source);
                             childrenToRemove.Add(child);
                         }
                     }
@@ -134,12 +134,13 @@ internal static class TagHelperIntermediateNodeRewriter
             }
         }
 
-        private void ParseAndAddAttributes(TagHelperIntermediateNode tagHelperNode, string attributeContent)
+        private void ParseAndAddAttributes(TagHelperIntermediateNode tagHelperNode, string attributeContent, SourceSpan? contentSource)
         {
             // Parse simple attribute assignments like: name="value" or name='value' or name=value
             // The content might look like: ` mail="example"` or `attr1="val1" attr2="val2"`
 
             var content = attributeContent.Trim();
+            var trimOffset = attributeContent.Length - attributeContent.TrimStart().Length;
             var index = 0;
 
             while (index < content.Length)
@@ -172,13 +173,14 @@ internal static class TagHelperIntermediateNodeRewriter
 
                 // Read attribute value
                 string attributeValue = "";
+                var valueStart = index;
                 if (index < content.Length)
                 {
                     var quoteChar = content[index];
                     if (quoteChar == '"' || quoteChar == '\'')
                     {
                         index++; // Skip opening quote
-                        var valueStart = index;
+                        valueStart = index;
                         while (index < content.Length && content[index] != quoteChar)
                         {
                             index++;
@@ -190,7 +192,7 @@ internal static class TagHelperIntermediateNodeRewriter
                     else
                     {
                         // Unquoted value
-                        var valueStart = index;
+                        valueStart = index;
                         while (index < content.Length && !char.IsWhiteSpace(content[index]))
                         {
                             index++;
@@ -233,8 +235,18 @@ internal static class TagHelperIntermediateNodeRewriter
                         AttributeStructure = AttributeStructure.DoubleQuotes,
                     };
 
-                    var valueNode = new HtmlAttributeValueIntermediateNode();
-                    valueNode.Children.Add(IntermediateNodeFactory.HtmlToken(attributeValue, source: null));
+                    // Source and Prefix were originally set by VisitMarkupLiteralAttributeValue in the
+                    // lowering phase from the syntax tree. Since we're re-parsing from string content,
+                    // derive the source span from the HtmlContentIntermediateNode that contained this text.
+                    var valueSource = contentSource is { } cs
+                        ? cs.Slice(trimOffset + valueStart, attributeValue.Length)
+                        : (SourceSpan?)null;
+                    var valueNode = new HtmlAttributeValueIntermediateNode()
+                    {
+                        Prefix = string.Empty,
+                        Source = valueSource,
+                    };
+                    valueNode.Children.Add(IntermediateNodeFactory.HtmlToken(attributeValue, source: valueSource));
                     htmlAttributeNode.Children.Add(valueNode);
 
                     tagHelperNode.Children.Add(htmlAttributeNode);

@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using Microsoft.AspNetCore.Razor;
@@ -35,6 +36,8 @@ namespace Microsoft.NET.Sdk.Razor.SourceGenerators
 
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
+            Debugger.Launch();
+
             var analyzerConfigOptions = context.AnalyzerConfigOptionsProvider;
             var parseOptions = context.ParseOptionsProvider;
             var compilation = context.CompilationProvider;
